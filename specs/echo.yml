@@ -1,0 +1,28 @@
+---
+name: echo
+command: |-
+  echo "This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>"
+tags:
+  - ssh
+  - echo
+description: Echo a message with a list of arguments
+arguments:
+  - name: sshKeyPath
+    description: The path of the SSH Key to be used
+    default_value: ~/.ssh/id_rsa
+    values:
+      - ~/.ssh/id_rsa
+      - ~/.zshrc.zwc/
+  - name: repositoryUrl
+    description: The SSH URL of the git repository
+  - name: targetFolder
+    description: The name of the folder in which the repository should be cloned into
+  - name: userName
+    description: The Name of the User to be configured for the git repository
+    default_value: Jhon Doe
+  - name: userEmail
+    description: The Email of the User to be configured for the git repository
+    default_value: johndoe@example.com
+source_url: "https://github.com/samgj18/echo"
+author: samuel
+author_url: "https://github.com/samgj18"

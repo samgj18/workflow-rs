@@ -5,6 +5,10 @@ use handlebars::Handlebars;
 use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
 use serde::{Deserialize, Serialize};
 
+const INSERTION_COST: usize = 1; // Weight for insertions
+const DELETION_COST: usize = 1; // Weight for deletions
+const SUBSTITUTION_COST: usize = 1; // Weight for substitutions
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowName(String);
 
@@ -16,6 +20,12 @@ impl WorkflowName {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowDescription(String);
+
+impl WorkflowDescription {
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowCommand(String);
@@ -71,6 +81,20 @@ pub struct Workflow {
 }
 
 impl Workflow {
+    #[cfg(test)]
+    pub fn new(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
+        Self {
+            name: WorkflowName(name.to_string()),
+            description: None,
+            command: WorkflowCommand(command.to_string()),
+            arguments,
+            source: None,
+            author: None,
+            version: None,
+            tags: Vec::new(),
+        }
+    }
+
     pub fn name(&self) -> &WorkflowName {
         &self.name
     }
@@ -110,7 +134,6 @@ impl Workflow {
             .map(|value| value.inner().to_owned())
             .collect::<Vec<_>>()
     }
-
     pub(self) fn suggestion(&self, input: &str) -> Vec<String> {
         // Find the values with the minimum levenshtein distance
         let mut min_distance = usize::MAX;
@@ -186,19 +209,19 @@ impl Workflow {
                 distance_b = if code_a == code_b {
                     distance_a
                 } else {
-                    distance_a + 1
+                    distance_a + SUBSTITUTION_COST
                 };
 
                 distance_a = cache[index_a];
 
                 result = if distance_a > result {
                     if distance_b > result {
-                        result + 1
+                        result + INSERTION_COST
                     } else {
                         distance_b
                     }
                 } else if distance_b > distance_a {
-                    distance_a + 1
+                    distance_a + DELETION_COST
                 } else {
                     distance_b
                 };
@@ -234,5 +257,44 @@ impl Autocomplete for Workflow {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_provides_correct_simple_suggestions() {
+        let arguments = vec![
+            Argument::new("test", Some("test"), vec!["test"]),
+            Argument::new("test2", Some("test2"), vec!["test2"]),
+        ];
+        let workflow = Workflow::new("test", "test", arguments);
+
+        let suggestions = workflow.suggestion("test");
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0], "test");
+    }
+
+    #[test]
+    fn test_provides_correct_complex_suggestions() {
+        let arguments = vec![Argument::new(
+            "test",
+            Some("test"),
+            vec![
+                "surreptitious",
+                "tergiversation",
+                "mergitramation",
+                "turreprosation",
+            ],
+        )];
+        let workflow = Workflow::new("test", "test", arguments);
+        let suggestions = workflow.suggestion("erg");
+
+        assert_eq!(suggestions.len(), 2);
+        assert_eq!(suggestions[0], "tergiversation");
+        assert_eq!(suggestions[1], "mergitramation");
     }
 }

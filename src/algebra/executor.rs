@@ -7,7 +7,7 @@ use inquire::Select;
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Unit, WORKDIR},
+    prelude::{Output, Unit, WORKDIR},
 };
 
 use super::prelude::Parser;
@@ -23,8 +23,8 @@ pub trait Executor<T, R> {
     fn execute(&self, args: Option<T>) -> Result<R, Error>;
 }
 
-impl Executor<Workflow, Unit> for Command {
-    fn execute(&self, workflow: Option<Workflow>) -> Result<Unit, Error> {
+impl Executor<Workflow, Output> for Command {
+    fn execute(&self, workflow: Option<Workflow>) -> Result<Output, Error> {
         match workflow {
             Some(workflow) => {
                 match self {
@@ -47,8 +47,8 @@ impl Executor<Workflow, Unit> for Command {
 
                         let is_execute =
                             Select::new("Do you want to execute the command?", vec!["y", "n"])
-                                .prompt()
-                                .map(|s| s == "y")
+                                .prompt_skippable()
+                                .map(|s| s.map(|s| s == "y").unwrap_or(false))
                                 .map_err(|e| Error::ReadError(Some(e.into())))?;
 
                         if is_execute {
@@ -57,7 +57,7 @@ impl Executor<Workflow, Unit> for Command {
                                 Clear(ClearType::All),
                                 Print(text),
                                 Print("\n"),
-                                Print(command),
+                                Print(command.clone()),
                                 Print("\n"),
                             )
                             .map_err(|e| Error::Io(Some(e.into())))?;
@@ -65,10 +65,9 @@ impl Executor<Workflow, Unit> for Command {
                             execute!(std::io::stdout(), SetSize(cols, rows),)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
                         }
-
-                        Ok(())
+                        Ok(Output::new("command", &command))
                     }
-                    _ => Ok(()),
+                    _ => Ok(Output::unsupported()),
                 }
             }
             None => match self {
@@ -77,6 +76,8 @@ impl Executor<Workflow, Unit> for Command {
                     let location = command.location().unwrap_or(&WORKDIR);
                     let files =
                         std::fs::read_dir(location).map_err(|e| Error::Io(Some(e.into())))?;
+
+                    let mut paths = vec![];
 
                     files
                         .into_iter()
@@ -91,16 +92,57 @@ impl Executor<Workflow, Unit> for Command {
                                 ResetColor,
                             );
 
+                            paths.push(path);
+
                             println!("{}", text);
                             Ok(())
                         })?;
 
-                    Ok(())
+                    Ok(Output::new("list", &paths.join("\n")))
                 }
                 _ => Err(Error::InvalidCommand(Some(
                     "Please provide a command. See --help".into(),
                 ))),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::List;
+
+    pub const WORKFLOW: &str = "./specs";
+
+    // Depends on https://github.com/mikaelmello/inquire/issues/70
+    // #[test]
+    // fn test_execute_run() {
+    //     let command = Command::Run(Run::new("test", None));
+    //     let workflow = Workflow::new("test", "ls", vec![]);
+    //
+    //     // Set timeout to send a ESC key to skip the prompt
+    //     std::thread::sleep(std::time::Duration::from_secs(1));
+    //
+    //
+    //     crossterm::event::poll(std::time::Duration::from_secs(1)).unwrap();
+    //
+    //     let result = command.execute(Some(workflow));
+    //
+    //     assert!(result.is_ok());
+    // }
+
+    #[test]
+    fn test_execute_list() {
+        let command = Command::List(List::new(Some(WORKFLOW)));
+
+        let result = command.execute(None);
+        let message = result.as_ref().unwrap().message();
+        let r#type = result.as_ref().unwrap().r#type();
+        let is_ok = result.is_ok();
+
+        assert!(is_ok);
+        assert_eq!(message, "./specs/echo.yml");
+        assert_eq!(r#type, "list");
     }
 }

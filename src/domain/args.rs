@@ -53,6 +53,19 @@ pub struct Argument {
 }
 
 impl Argument {
+    #[cfg(test)]
+    pub fn new(name: &str, default: Option<&str>, values: Vec<&str>) -> Self {
+        Self {
+            name: ArgumentName(name.to_string()),
+            description: None,
+            default: default.map(|d| ArgumentDefault(d.to_string())),
+            values: values
+                .into_iter()
+                .map(|v| ArgumentValue(v.to_string()))
+                .collect(),
+        }
+    }
+
     pub fn name(&self) -> &ArgumentName {
         &self.name
     }

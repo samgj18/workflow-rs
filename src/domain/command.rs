@@ -19,6 +19,13 @@ pub struct List {
 }
 
 impl List {
+    #[cfg(test)]
+    pub fn new(location: Option<&str>) -> Self {
+        Self {
+            location: location.map(|s| s.to_string()),
+        }
+    }
+
     pub fn location(&self) -> Option<&str> {
         self.location.as_deref()
     }
@@ -38,6 +45,14 @@ pub struct Run {
 }
 
 impl Run {
+    #[cfg(test)]
+    pub fn new(name: &str, location: Option<&str>) -> Self {
+        Self {
+            name: name.to_string(),
+            location: location.map(|s| s.to_string()),
+        }
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }

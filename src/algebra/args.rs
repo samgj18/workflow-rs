@@ -59,3 +59,51 @@ fn load_workflow_file(workdir: &str, value: &str) -> Result<String, Error> {
 fn parse_workflow_string(workflow: String) -> Result<Workflow, Error> {
     serde_yaml::from_str::<Workflow>(&workflow).map_err(|e| Error::ParseError(Some(e.into())))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::Run;
+
+    pub const WORKDIR: &str = "./specs";
+
+    #[test]
+    fn test_load_workflow_file() {
+        let value = "echo.yml";
+        let result = load_workflow_file(WORKDIR, value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_workflow_string() {
+        let workflow = r#"
+            name: test
+            command: test
+        "#;
+        let result = parse_workflow_string(workflow.to_owned());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prepare() {
+        let command = Command::Run(Run::new("echo.yml", Some(WORKDIR)));
+        let result = command.prepare();
+
+        let name = result.as_ref().unwrap().as_ref().unwrap().name().inner();
+        let description = result
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .description()
+            .unwrap()
+            .inner();
+        let command = result.as_ref().unwrap().as_ref().unwrap().command().inner();
+        let is_some = result.is_ok() && result.as_ref().unwrap().is_some();
+
+        assert!(is_some);
+        assert_eq!(name, "echo");
+        assert_eq!(description, "Echo a message with a list of arguments");
+        assert_eq!(command, "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"");
+    }
+}

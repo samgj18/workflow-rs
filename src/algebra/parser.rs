@@ -90,3 +90,62 @@ impl Parser<Option<Precedence>, HashMap<String, String>> for Argument {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::args::Argument;
+
+    #[test]
+    fn test_parse_argument() {
+        let argument = Argument::new("test_arg", None, vec![]);
+        let argument = argument.try_parse::<Error>(None).unwrap().unwrap();
+
+        assert_eq!(argument.len(), 1);
+        assert_eq!(
+            argument.get("test_arg"),
+            Some(&"<insert value>".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_argument_with_precedence() {
+        let argument = Argument::new("test_arg", None, vec![]);
+
+        let mut precedence = HashMap::new();
+        precedence.insert("test_arg".into(), "test".into());
+
+        let argument = argument
+            .try_parse::<Error>(Some(precedence))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(argument.len(), 1);
+        assert_eq!(argument.get("test_arg"), Some(&"test".to_string()));
+    }
+
+    #[test]
+    fn test_parse_argument_without_precedence_and_default() {
+        let argument = Argument::new("test_arg", Some("super test"), vec![]);
+
+        let argument = argument.try_parse::<Error>(None).unwrap().unwrap();
+
+        assert_eq!(argument.len(), 1);
+        assert_eq!(argument.get("test_arg"), Some(&"super test".to_string()));
+    }
+
+    // Depends on https://github.com/mikaelmello/inquire/issues/70
+    // #[test]
+    // fn test_parse_workflow() {
+    // }
+
+    // Depends on https://github.com/mikaelmello/inquire/issues/70
+    // #[test]
+    // fn test_parse_workflow_with_precedence() {
+    // }
+
+    // Depends on https://github.com/mikaelmello/inquire/issues/70
+    // #[test]
+    // fn test_parse_workflow_without_precedence_and_default() {
+    // }
+}
