@@ -7,7 +7,7 @@ use inquire::Select;
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::WORKDIR,
+    prelude::{Unit, WORKDIR},
 };
 
 use super::prelude::Parser;
@@ -22,8 +22,6 @@ pub trait Executor<T, R> {
     /// * A `Result` with a `String` or an `Error`
     fn execute(&self, args: Option<T>) -> Result<R, Error>;
 }
-
-pub type Unit = ();
 
 impl Executor<Workflow, Unit> for Command {
     fn execute(&self, workflow: Option<Workflow>) -> Result<Unit, Error> {
@@ -74,6 +72,7 @@ impl Executor<Workflow, Unit> for Command {
                 }
             }
             None => match self {
+                // TODO: Print workflow descriptions
                 Command::List(command) => {
                     let location = command.location().unwrap_or(&WORKDIR);
                     let files =

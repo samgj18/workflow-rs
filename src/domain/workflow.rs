@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use super::{args::Argument, prelude::Error};
 use handlebars::Handlebars;
+use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowName(String);
 
 impl WorkflowName {
@@ -13,10 +14,10 @@ impl WorkflowName {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowDescription(String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowCommand(String);
 
 impl WorkflowCommand {
@@ -34,19 +35,19 @@ impl WorkflowCommand {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowSource(String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowAuthor(String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowVersion(String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WorkflowTag(String);
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Workflow {
     /// The name of the workflow
     name: WorkflowName,
@@ -55,6 +56,7 @@ pub struct Workflow {
     /// The command to run the workflow
     command: WorkflowCommand,
     /// The commands to run the workflow
+    #[serde(default = "Vec::new")]
     arguments: Vec<Argument>,
     /// The url to the source of the workflow
     #[serde(rename = "source_url")]
@@ -64,6 +66,7 @@ pub struct Workflow {
     /// The version of the workflow
     version: Option<WorkflowVersion>,
     /// The tags of the workflow
+    #[serde(default = "Vec::new")]
     tags: Vec<WorkflowTag>,
 }
 
@@ -98,5 +101,138 @@ impl Workflow {
 
     pub fn tags(&self) -> &Vec<WorkflowTag> {
         &self.tags
+    }
+
+    pub fn values(&self) -> Vec<String> {
+        self.arguments
+            .iter()
+            .flat_map(|argument| argument.values())
+            .map(|value| value.inner().to_owned())
+            .collect::<Vec<_>>()
+    }
+
+    pub(self) fn suggestion(&self, input: &str) -> Vec<String> {
+        // Find the values with the minimum levenshtein distance
+        let mut min_distance = usize::MAX;
+        let mut min_values = Vec::new();
+
+        for value in self.values() {
+            let distance = Workflow::levenshtein(input, value.as_str());
+
+            match distance.cmp(&min_distance) {
+                Ordering::Less => {
+                    min_distance = distance;
+                    min_values = vec![value];
+                }
+                Ordering::Equal => {
+                    min_values.push(value);
+                }
+                Ordering::Greater => {} // No action needed in this case
+            }
+        }
+
+        min_values
+    }
+
+    pub(self) fn completion(&self, input: &str) -> Option<String> {
+        // Find the value with the minimum levenshtein distance
+        let mut min_distance = usize::MAX;
+        let mut min_value = None;
+
+        for value in self.values() {
+            let distance = Workflow::levenshtein(input, value.as_str());
+
+            if distance < min_distance {
+                min_distance = distance;
+                min_value = Some(value);
+            }
+        }
+
+        min_value
+    }
+
+    /// Calculates the levenshtein distance between two strings
+    ///
+    /// # Credit
+    ///
+    /// Credit where credit is due. This implementation is taken from [wooorm/levenshtein-rs](https://github.com/wooorm/levenshtein-rs)
+    fn levenshtein(from: &str, to: &str) -> usize {
+        let mut result = 0;
+
+        if from == to {
+            return result;
+        }
+
+        let length_a = from.chars().count();
+        let length_b = to.chars().count();
+
+        if length_a == 0 {
+            return length_b;
+        }
+
+        if length_b == 0 {
+            return length_a;
+        }
+
+        let mut cache: Vec<usize> = (1..).take(length_a).collect();
+        let mut distance_a;
+        let mut distance_b;
+
+        for (index_b, code_b) in to.chars().enumerate() {
+            result = index_b;
+            distance_a = index_b;
+
+            for (index_a, code_a) in from.chars().enumerate() {
+                distance_b = if code_a == code_b {
+                    distance_a
+                } else {
+                    distance_a + 1
+                };
+
+                distance_a = cache[index_a];
+
+                result = if distance_a > result {
+                    if distance_b > result {
+                        result + 1
+                    } else {
+                        distance_b
+                    }
+                } else if distance_b > distance_a {
+                    distance_a + 1
+                } else {
+                    distance_b
+                };
+
+                cache[index_a] = result;
+            }
+        }
+
+        result
+    }
+}
+
+impl Autocomplete for Workflow {
+    /// Is called whenever the user's text input is modified
+    fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, CustomUserError> {
+        Ok(self.suggestion(input))
+    }
+
+    /// Is called whenever the user presses tab
+    fn get_completion(
+        &mut self,
+        input: &str,
+        highlighted_suggestion: Option<String>,
+    ) -> Result<Replacement, CustomUserError> {
+        match highlighted_suggestion {
+            Some(suggestion) => Ok(Replacement::Some(suggestion)),
+            None => {
+                let completion = self.completion(input);
+
+                match completion {
+                    Some(completion) => Ok(Replacement::Some(completion)),
+                    None => Ok(Replacement::None),
+                }
+            }
+        }
     }
 }

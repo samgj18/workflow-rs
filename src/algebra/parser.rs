@@ -33,9 +33,16 @@ impl Parser<Precedence, String> for Workflow {
         let precedence = self.arguments().iter().try_fold(
             HashMap::new(),
             |mut acc, argument| -> Result<HashMap<String, String>, Error> {
-                let value = Text::new(argument.name().inner())
-                    .prompt()
-                    .map_err(|e| Error::ReadError(Some(e.into())))?;
+                let value = if !argument.values().is_empty() {
+                    Text::new(argument.name().inner())
+                        .with_autocomplete(self.clone())
+                        .prompt()
+                        .map_err(|e| Error::ReadError(Some(e.into())))?
+                } else {
+                    Text::new(argument.name().inner())
+                        .prompt()
+                        .map_err(|e| Error::ReadError(Some(e.into())))?
+                };
 
                 if !value.is_empty() {
                     acc.insert(argument.name().inner().to_string(), value);

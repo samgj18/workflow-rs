@@ -10,7 +10,11 @@ pub enum Command {
 #[derive(Parser, Debug)]
 #[command(about = "List all available workflows, e.g. `workflow list`")]
 pub struct List {
-    #[arg(short, long, help = "The location of the workflows")]
+    #[arg(
+        short,
+        long,
+        help = "The location of the workflows: [default: $HOME/.workflow]"
+    )]
     location: Option<String>,
 }
 
@@ -25,7 +29,11 @@ impl List {
 pub struct Run {
     #[arg(short, long, help = "The name of the workflow")]
     name: String,
-    #[arg(short, long, help = "The location of the workflows")]
+    #[arg(
+        short,
+        long,
+        help = "The location of the workflows: [default: $HOME/.workflow]"
+    )]
     location: Option<String>,
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "workflow"
-description = "A simple workflow engine"
+description = "A simple workflow engine for the command line"
 version = "0.0.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"

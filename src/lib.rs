@@ -11,4 +11,6 @@ pub mod prelude {
         let home = std::env::var("HOME").expect("Failed to get home directory");
         format!("{}/.workflows", home)
     });
+
+    pub type Unit = ();
 }
