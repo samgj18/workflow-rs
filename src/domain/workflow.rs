@@ -1,11 +1,17 @@
 use std::collections::HashMap;
 
-use super::{argument::Argument, prelude::Error};
+use super::{args::Argument, prelude::Error};
 use handlebars::Handlebars;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WorkflowName(String);
+
+impl WorkflowName {
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WorkflowDescription(String);
@@ -92,17 +98,5 @@ impl Workflow {
 
     pub fn tags(&self) -> &Vec<WorkflowTag> {
         &self.tags
-    }
-
-    /// Returns a map of the arguments with the default values or the values
-    /// provided by the user in the workflow call
-    pub fn parsed(&self, precedence: &HashMap<&str, &str>) -> HashMap<String, String> {
-        let mut arguments = HashMap::new();
-        self.arguments().iter().for_each(|arg| {
-            if let Some(args) = arg.parsed(precedence) {
-                arguments.extend(args);
-            }
-        });
-        arguments
     }
 }
