@@ -1,11 +1,18 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Write};
 
 use clap::Parser;
-use inquire::Text;
+use inquire::{Select, Text};
 use workflow::domain::prelude::*;
+
+use crossterm::{
+    execute,
+    style::{Color, Print, ResetColor, SetForegroundColor},
+    terminal::{Clear, ClearType},
+};
 
 pub trait WorkflowExecutor {
     fn get(&self, name: &str) -> Result<Workflow, Error>;
+    fn execute(&self, command: &str) -> Result<(), Error>;
 }
 
 #[derive(Parser, Debug)]
@@ -59,6 +66,11 @@ impl WorkflowExecutor for Args {
             })
             .unwrap_or_else(|| Err(Error::InvalidName(None)))
     }
+
+    fn execute(&self, command: &str) -> Result<(), Error> {
+
+        todo!()
+    }
 }
 
 fn main() -> Result<(), Error> {
@@ -71,7 +83,7 @@ fn main() -> Result<(), Error> {
     let precedence = workflow.arguments().iter().try_fold(
         HashMap::new(),
         |mut acc, argument| -> Result<HashMap<String, String>, Error> {
-            let value = inquire::Text::new(argument.name().inner())
+            let value = Text::new(argument.name().inner())
                 .prompt()
                 .map_err(|e| Error::ReadError(Some(e.into())))?;
 
@@ -90,14 +102,42 @@ fn main() -> Result<(), Error> {
     );
 
     let command = workflow.command().replace(&args)?;
+    let colored_text = format!(
+        "{}{}{}",
+        SetForegroundColor(Color::Red), // Set the text color to red
+        "Hello, colored text!",
+        ResetColor // Reset the text color to default
+    );
 
-    println!("{}", command);
-    // let template = handlebars::Handlebars::new();
-    // let arguments = workflow.parsed(&HashMap::new());
+    execute!(
+        std::io::stdout(),
+        Clear(ClearType::All),
+        Print(colored_text),
+        Print("\n"),
+        Print(command),
+        Print("\n")
+    )
+    .unwrap();
 
-    // let rendered = template.render_template(workflow.command().inner(), &workflow.arguments());
-    // println!("Rendered: {}", rendered.unwrap());
-    // println!("Workflow: {:?}", workflow);
+    // let execute = Select::new("Do you want to execute the command?", vec!["y", "n"])
+    //     .prompt()
+    //     .map_err(|e| Error::ReadError(Some(e.into())))?;
+    //
+    // if execute == "y" {
+    //     let mut child = std::process::Command::new("sh")
+    //         .arg("-c")
+    //         .arg(command)
+    //         .spawn()
+    //         .map_err(|e| Error::ReadError(Some(e.into())))?;
+    //
+    //     let status = child.wait().map_err(|e| Error::ReadError(Some(e.into())))?;
+    //
+    //     if status.success() {
+    //         println!("Command executed successfully");
+    //     } else {
+    //         println!("Command failed");
+    //     }
+    // }
 
     Ok(())
 }

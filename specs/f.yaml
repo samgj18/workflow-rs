@@ -1,11 +1,7 @@
 ---
 name: Clone git repository with specific SSH Key and User
 command: |-
-  git -c core.sshCommand='ssh -i {{sshKeyPath}} -o IdentitiesOnly=yes' clone {{repositoryUrl}} {{targetFolder}}
-  cd {{targetFolder}}
-  git config core.sshCommand 'ssh -i {{sshKeyPath}}'
-  git config user.name "{{userName}}"
-  git config user.email {{userEmail}}
+  ls
 tags:
   - git
   - ssh
