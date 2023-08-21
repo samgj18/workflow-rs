@@ -24,6 +24,8 @@ pub enum Error {
     ParseError(#[source] Option<Box<dyn StdError>>),
     #[error("Unable to read the workflow.")]
     ReadError(#[source] Option<Box<dyn StdError>>),
+    #[error("Unable to properly index workflows.")]
+    SchemaError(#[source] Option<Box<dyn StdError>>),
     #[error("The workflow is invalid.")]
     Io(#[from] Option<Box<dyn StdError>>),
 }

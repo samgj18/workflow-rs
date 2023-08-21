@@ -71,7 +71,6 @@ impl Executor<Workflow, Output> for Command {
                 }
             }
             None => match self {
-                // TODO: Print workflow descriptions
                 Command::List(command) => {
                     let location = command.location().unwrap_or(&WORKDIR);
                     let files =
@@ -81,6 +80,11 @@ impl Executor<Workflow, Output> for Command {
 
                     files
                         .into_iter()
+                        .filter(|file| {
+                            file.as_ref().map_or(false, |file| {
+                                file.metadata().map_or(false, |metadata| metadata.is_file())
+                            })
+                        })
                         .try_for_each::<_, Result<Unit, Error>>(|file| {
                             let file = file.map_err(|e| Error::Io(Some(e.into())))?;
                             let path = file.path().display().to_string();
