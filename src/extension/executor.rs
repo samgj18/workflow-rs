@@ -7,7 +7,7 @@ use inquire::Select;
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Crawler, File, Output, Unit, INDEX_DIR, WORKDIR, WRITER},
+    prelude::{Crawler, File, Indexer, Output, Unit, INDEX_DIR, WORKDIR, WRITER},
 };
 
 use super::prelude::Parser;
@@ -68,9 +68,8 @@ impl Executor<Workflow, Output> for Command {
                         Ok(Output::new("command", &command))
                     }
                     Command::List(_) => Ok(Output::unsupported()),
-                    Command::Scan(_) => Ok(Output::unsupported()),
-                    Command::Clean(_) => Ok(Output::unsupported()),
                     Command::Search(_) => Ok(Output::unsupported()),
+                    Command::Index(_) => Ok(Output::unsupported()),
                 }
             }
             None => match self {
@@ -110,58 +109,64 @@ impl Executor<Workflow, Output> for Command {
                 Command::Run(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
-                Command::Scan(_) => {
-                    let location: &str = &WORKDIR;
-                    println!("Scanning at {}", location);
-                    let path = File::new(&format!("{}/{}", location, INDEX_DIR));
-
-                    if path.exists() {
-                        path.remove_all().and_then(|_| path.create_dir_all())?;
-                    }
-
-                    Crawler::crawl(location, &WRITER).map_err(|e| Error::Io(Some(e.into())))?;
-
-                    let text = format!(
-                        "{}{}{}{}",
-                        SetForegroundColor(Color::Green), // Set the text color to red
-                        "Scan created at ",
-                        location,
-                        ResetColor,
-                    );
-
-                    println!("{}", text);
-
-                    Ok(Output::new(
-                        "scan",
-                        &format!("Scan created at {}", location),
-                    ))
-                }
-                Command::Clean(_) => {
-                    let location: &str = &WORKDIR;
-                    let path = File::new(&format!("{}/{}", location, INDEX_DIR));
-
-                    if path.exists() {
-                        path.remove_all().and_then(|_| path.create_dir_all())?;
-                    }
-
-                    let text = format!(
-                        "{}{}{}{}",
-                        SetForegroundColor(Color::Green), // Set the text color to red
-                        "Scan cleaned at ",
-                        location,
-                        ResetColor,
-                    );
-
-                    println!("{}", text);
-
-                    Ok(Output::new(
-                        "clean",
-                        &format!("Scan cleaned at {}", location),
-                    ))
-                }
                 Command::Search(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
+                Command::Index(command) => {
+                    match command {
+                        Indexer::Clean(_) => {
+                            let location: &str = &WORKDIR;
+                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+
+                            if path.exists() {
+                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                            }
+
+                            println!("{}", &path.path());
+
+                            let text = format!(
+                                "{}{}{}{}",
+                                SetForegroundColor(Color::Green), // Set the text color to red
+                                "Scan cleaned at ",
+                                location,
+                                ResetColor,
+                            );
+
+                            println!("{}", text);
+
+                            Ok(Output::new(
+                                "clean",
+                                &format!("Scan cleaned at {}", location),
+                            ))
+                        }
+                        Indexer::Create(_) => {
+                            let location: &str = &WORKDIR;
+                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+
+                            if path.exists() {
+                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                            }
+
+                            Crawler::crawl(location, &WRITER)
+                                .map_err(|e| Error::Io(Some(e.into())))?;
+
+                            let text = format!(
+                                "{}{}{}{}",
+                                SetForegroundColor(Color::Green), // Set the text color to red
+                                "Scan created at ",
+                                location,
+                                ResetColor,
+                            );
+
+                            println!("{}", text);
+
+                            Ok(Output::new(
+                                "scan",
+                                &format!("Scan created at {}", location),
+                            ))
+                        }
+                    }
+                }
             },
         }
     }
@@ -170,7 +175,7 @@ impl Executor<Workflow, Output> for Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prelude::{List, Scan};
+    use crate::prelude::List;
 
     pub const WORKFLOW: &str = "./specs";
 
@@ -207,9 +212,9 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_scan() {
+    fn test_execute_create() {
         std::env::set_var("WORKFLOW_DIR", WORKFLOW);
-        let command = Command::Scan(Scan::default());
+        let command = Command::Index(Indexer::new("create"));
 
         let result = command.execute(None);
         let message = result.as_ref().unwrap().message();
@@ -219,5 +224,28 @@ mod tests {
         assert!(is_ok);
         assert_eq!(message, "Scan created at ./specs");
         assert_eq!(r#type, "scan");
+    }
+
+    #[test]
+    fn test_execute_clean() {
+        // TODO: Fix this flakes test. We're sleeping because many tests interact with the same
+        // environment variable.
+        std::thread::sleep(std::time::Duration::from_secs(4));
+
+        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+
+        let command = Command::Index(Indexer::new("clean"));
+        let result = command.execute(None);
+        let message = result.as_ref().unwrap().message();
+        let r#type = result.as_ref().unwrap().r#type();
+        let is_ok = result.is_ok();
+
+        // This is part of the same hack to restore previous state
+        Crawler::crawl(WORKFLOW, &WRITER).unwrap();
+
+
+        assert!(is_ok);
+        assert_eq!(message, "Scan cleaned at ./specs");
+        assert_eq!(r#type, "clean");
     }
 }

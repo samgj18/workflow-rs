@@ -2,4 +2,5 @@
 /Cargo.lock
 specs/empty/*
 specs/index/*
+specs/clean/*
 !specs/index/history.json

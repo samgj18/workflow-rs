@@ -179,8 +179,6 @@ mod tests {
 
         let crawled = Crawler::finding(names, &path).unwrap();
 
-        println!("{:?}", crawled);
-
         assert_eq!(crawled.non_visited.len(), 0);
         assert_eq!(crawled.visited.len(), 1);
     }
