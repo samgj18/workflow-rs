@@ -74,8 +74,8 @@ impl Executor<Workflow, Output> for Command {
                 }
             }
             None => match self {
-                Command::List(command) => {
-                    let location = command.location().unwrap_or(&WORKDIR);
+                Command::List(_) => {
+                    let location: &str = &WORKDIR;
                     let files =
                         std::fs::read_dir(location).map_err(|e| Error::Io(Some(e.into())))?;
 
@@ -110,8 +110,9 @@ impl Executor<Workflow, Output> for Command {
                 Command::Run(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
-                Command::Scan(command) => {
-                    let location = command.location().unwrap_or(&WORKDIR);
+                Command::Scan(_) => {
+                    let location: &str = &WORKDIR;
+                    println!("Scanning at {}", location);
                     let path = File::new(&format!("{}/{}", location, INDEX_DIR));
 
                     if path.exists() {
@@ -135,9 +136,29 @@ impl Executor<Workflow, Output> for Command {
                         &format!("Scan created at {}", location),
                     ))
                 }
-                Command::Clean(_) => Err(Error::InvalidCommand(Some(
-                    "Please provide a workflow. See --help".into(),
-                ))),
+                Command::Clean(_) => {
+                    let location: &str = &WORKDIR;
+                    let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+
+                    if path.exists() {
+                        path.remove_all().and_then(|_| path.create_dir_all())?;
+                    }
+
+                    let text = format!(
+                        "{}{}{}{}",
+                        SetForegroundColor(Color::Green), // Set the text color to red
+                        "Scan cleaned at ",
+                        location,
+                        ResetColor,
+                    );
+
+                    println!("{}", text);
+
+                    Ok(Output::new(
+                        "clean",
+                        &format!("Scan cleaned at {}", location),
+                    ))
+                }
                 Command::Search(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
@@ -172,7 +193,8 @@ mod tests {
 
     #[test]
     fn test_execute_list() {
-        let command = Command::List(List::new(Some(WORKFLOW)));
+        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        let command = Command::List(List::default());
 
         let result = command.execute(None);
         let message = result.as_ref().unwrap().message();
@@ -186,7 +208,8 @@ mod tests {
 
     #[test]
     fn test_execute_scan() {
-        let command = Command::Scan(Scan::new(Some(WORKFLOW)));
+        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        let command = Command::Scan(Scan::default());
 
         let result = command.execute(None);
         let message = result.as_ref().unwrap().message();

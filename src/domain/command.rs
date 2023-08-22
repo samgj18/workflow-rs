@@ -10,116 +10,54 @@ pub enum Command {
     Search(Search),
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(about = "List all available workflows, e.g. `workflow list`")]
-pub struct List {
-    #[arg(
-        short,
-        long,
-        help = "The location of the workflows: [default: $HOME/.workflow]"
-    )]
-    location: Option<String>,
-}
-
-impl List {
-    #[cfg(test)]
-    pub fn new(location: Option<&str>) -> Self {
-        Self {
-            location: location.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
-}
+pub struct List {}
 
 #[derive(Parser, Debug)]
 #[command(about = "Run a workflow, e.g. `workflow run <name>`")]
 pub struct Run {
     #[arg(short, long, help = "The name of the workflow")]
     name: String,
-    #[arg(
-        short,
-        long,
-        help = "The location of the workflows: [default: $HOME/.workflow]"
-    )]
-    location: Option<String>,
 }
 
 impl Run {
     #[cfg(test)]
-    pub fn new(name: &str, location: Option<&str>) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            location: location.map(|s| s.to_string()),
         }
     }
 
     pub fn name(&self) -> &str {
         &self.name
     }
-
-    pub fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(about = "Scan and index workflows, e.g. `workflow scan`")]
-pub struct Scan {
-    #[arg(
-        short,
-        long,
-        help = "The location of the workflows: [default: $HOME/.workflow]"
-    )]
-    location: Option<String>,
-}
-
-impl Scan {
-    #[cfg(test)]
-    pub fn new(location: Option<&str>) -> Self {
-        Self {
-            location: location.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
-}
+pub struct Scan {}
 
 #[derive(Parser, Debug)]
 #[command(about = "Search for workflows, e.g. `workflow search <query>`")]
 pub struct Search {
     #[arg(short, long, help = "The query to search for")]
     query: String,
-    #[arg(
-        short,
-        long,
-        help = "The location of the workflows: [default: $HOME/.workflow]"
-    )]
-    location: Option<String>,
 }
 
 impl Search {
     #[cfg(test)]
-    pub fn new(query: &str, location: Option<&str>) -> Self {
+    pub fn new(query: &str) -> Self {
         Self {
             query: query.to_string(),
-            location: location.map(|s| s.to_string()),
         }
     }
 
     pub fn query(&self) -> &str {
         &self.query
     }
-
-    pub fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(about = "Clean the index, e.g. `workflow clean`")]
 pub struct Clean {}

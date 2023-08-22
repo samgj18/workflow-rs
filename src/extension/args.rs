@@ -20,7 +20,7 @@ impl Prepare for Command {
         match self {
             Command::Run(command) => {
                 let names: &[&str] = &[command.name()];
-                let location = command.location().unwrap_or(&WORKDIR);
+                let location: &str = &WORKDIR;
 
                 prepare_workflows(names, location)?
                     .pop()
@@ -41,6 +41,7 @@ mod tests {
     use crate::prelude::Run;
 
     pub const WORKDIR: &str = "./specs";
+    // Publish workdir as a env variable
 
     #[test]
     fn test_load_workflow_file() {
@@ -61,7 +62,8 @@ mod tests {
 
     #[test]
     fn test_prepare() {
-        let command = Command::Run(Run::new("echo.yml", Some(WORKDIR)));
+        std::env::set_var("WORKFLOW_DIR", WORKDIR);
+        let command = Command::Run(Run::new("echo.yml"));
         let result = command.prepare();
 
         let name = result.as_ref().unwrap().as_ref().unwrap().name().inner();

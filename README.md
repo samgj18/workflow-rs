@@ -73,6 +73,8 @@ See the [open issues]([https://github.com/samgj18/workflow-rs/issues](https://gi
 
 ## Usage
 
+By default, the work directory used is `$HOME/.workflows/`. This can be changed by setting the `WORKFLOW_DIR` environment variable.
+
 ```bash
 workflow --help # By default, it will look for a `name.workflow.yml` at `$HOME/.workflows/` 
 # unless a different path is specified

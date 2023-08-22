@@ -12,10 +12,13 @@ pub mod prelude {
     #[doc(inline)]
     pub use crate::extension::prelude::*;
 
-
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
-        let home = std::env::var("HOME").expect("Failed to get home directory");
-        format!("{}/.config/workflows", home)
+        // TODO: Make this a writable file such that user can create a .config/workflows directory
+        // and we read the path from there.
+        let home = std::env::var("WORKFLOW_DIR");
+        let default = format!("{}/.workflows", env!("HOME"));
+
+        home.unwrap_or(default)
     });
 
     // This is fine because a CLI application is a blocking application. Hence, we can use a global
