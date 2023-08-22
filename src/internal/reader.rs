@@ -26,7 +26,10 @@ impl Reader {
                 Error::SchemaError(Some(format!("Error creating reader: {:?}", e).into()))
             })?;
 
-        Ok(Self { reader, index: index.clone() })
+        Ok(Self {
+            reader,
+            index: index.clone(),
+        })
     }
 
     pub fn inner(self) -> IndexReader {

@@ -22,7 +22,10 @@ impl Writer {
             })
             .map(|w| Arc::new(Mutex::new(w)))?;
 
-        Ok(Self { writer, index: index.clone() })
+        Ok(Self {
+            writer,
+            index: index.clone(),
+        })
     }
 
     pub fn inner(self) -> Arc<Mutex<IndexWriter>> {
