@@ -1,11 +1,17 @@
+pub mod algebra;
 pub mod domain;
-pub mod internal;
+pub mod extension;
 
 pub mod prelude {
     use once_cell::sync::Lazy;
 
+    #[doc(inline)]
+    pub use crate::algebra::prelude::*;
+    #[doc(inline)]
     pub use crate::domain::prelude::*;
-    pub use crate::internal::prelude::*;
+    #[doc(inline)]
+    pub use crate::extension::prelude::*;
+
 
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
         let home = std::env::var("HOME").expect("Failed to get home directory");

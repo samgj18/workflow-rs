@@ -8,7 +8,7 @@ use tantivy::{schema::Schema, Index as TantivyIndex};
 
 use crate::{
     domain::prelude::Error,
-    internal::schema::Schema as SchemaTrait,
+    extension::schema::Schema as SchemaTrait,
     prelude::{Workflow, INDEX_DIR, WORKDIR},
 };
 

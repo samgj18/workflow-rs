@@ -1,29 +1,17 @@
 pub mod args;
-pub mod crawler;
 pub mod executor;
-pub mod index;
 pub mod parser;
-pub mod reader;
 pub mod schema;
-pub mod writer;
 
 pub mod prelude {
     #[doc(inline)]
     pub use super::args::*;
     #[doc(inline)]
-    pub use super::crawler::*;
-    #[doc(inline)]
     pub use super::executor::*;
-    #[doc(inline)]
-    pub use super::index::*;
     #[doc(inline)]
     pub use super::parser::*;
     #[doc(inline)]
-    pub use super::reader::*;
-    #[doc(inline)]
     pub use super::schema::*;
-    #[doc(inline)]
-    pub use super::writer::*;
 
     use crate::prelude::{Error, FileExtension, Workflow};
     use std::collections::HashSet;
