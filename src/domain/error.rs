@@ -12,6 +12,8 @@ pub enum Error {
     InvalidCommand(#[source] Option<Box<dyn StdError>>),
     #[error("The workflow source is invalid.")]
     InvalidSource(#[source] Option<Box<dyn StdError>>),
+    #[error("The workflow configuration is invalid.")]
+    InvalidConfiguration(#[source] Option<Box<dyn StdError>>),
     #[error("The workflow author is invalid.")]
     InvalidAuthor(#[source] Option<Box<dyn StdError>>),
     #[error("The workflow version is invalid.")]

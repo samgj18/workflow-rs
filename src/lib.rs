@@ -3,6 +3,8 @@ pub mod domain;
 pub mod extension;
 
 pub mod prelude {
+    use std::str::FromStr;
+
     use once_cell::sync::Lazy;
 
     #[doc(inline)]
@@ -13,12 +15,24 @@ pub mod prelude {
     pub use crate::extension::prelude::*;
 
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
-        // TODO: Make this a writable file such that user can create a .config/workflows directory
-        // and we read the path from there.
-        let home = std::env::var("WORKFLOW_DIR");
-        let default = format!("{}/.workflows", env!("HOME"));
+        let path = format!("{}/.config/workflows", env!("HOME"));
+        let configuration: Result<Result<Configuration, Error>, Error> =
+            std::fs::read_to_string(path)
+                .map(|s| Configuration::from_str(&s))
+                .map_err(|e| {
+                    Error::InvalidConfiguration(Some(
+                        format!("Failed to read configuration file: {}", e).into(),
+                    ))
+                });
 
-        home.unwrap_or(default)
+        let home = std::env::var("WORKFLOW_DIR");
+        match home {
+            Ok(home) => home,
+            Err(_) => match configuration {
+                Ok(Ok(path)) => path.workflow_dir().to_owned(),
+                _ => format!("{}/.workflows", env!("HOME")),
+            },
+        }
     });
 
     // This is fine because a CLI application is a blocking application. Hence, we can use a global

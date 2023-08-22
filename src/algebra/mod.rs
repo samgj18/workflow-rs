@@ -1,9 +1,12 @@
+pub mod configuration;
 pub mod crawler;
 pub mod index;
 pub mod reader;
 pub mod writer;
 
 pub mod prelude {
+    #[doc(inline)]
+    pub use super::configuration::*;
     #[doc(inline)]
     pub use super::crawler::*;
     #[doc(inline)]
