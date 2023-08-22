@@ -4,7 +4,7 @@ use std::{
     io::{Seek, SeekFrom},
 };
 
-use crate::prelude::{prepare_workflows, Error, File, Unit, Workflow, Writer};
+use crate::prelude::{prepare_workflows, Error, File, FileExtension, Unit, Workflow, Writer};
 
 pub const HISTORY: &str = "history.json";
 pub const INDEX_DIR: &str = "index";
@@ -40,6 +40,7 @@ impl Crawler {
         let mut file = std::fs::OpenOptions::new();
         let path = format!("{}/{}", directory, HISTORY);
         let exists = File::new(&path).exists();
+        let names = FileExtension::format_all(names);
 
         if !exists {
             Ok(Finding {
@@ -125,8 +126,8 @@ impl Crawler {
             )?;
 
         let finding = Self::finding(names.into_iter().collect(), path.as_str())?;
-        let path = format!("{}/{}/{}", directory, INDEX_DIR, HISTORY);
-        Self::write(&path, &finding.union())?;
+        let write_path = format!("{}/{}/{}", directory, INDEX_DIR, HISTORY);
+        Self::write(&write_path, &finding.union())?;
 
         let names: &[&str] = &finding
             .non_visited
@@ -168,15 +169,17 @@ mod tests {
 
         assert_eq!(crawled.non_visited.len(), 1);
         assert!(crawled.visited.is_empty());
-        assert!(crawled.non_visited.contains("echo"));
+        assert!(crawled.non_visited.contains("echo.yaml"));
     }
 
     #[test]
     fn test_non_visited_when_history_exists() {
         let path = format!("{}/{}", WORKDIR, INDEX_DIR);
-        let names = vec!["echo".to_owned()].into_iter().collect();
+        let names = vec!["echo.yml".to_owned()].into_iter().collect();
 
         let crawled = Crawler::finding(names, &path).unwrap();
+
+        println!("{:?}", crawled);
 
         assert_eq!(crawled.non_visited.len(), 0);
         assert_eq!(crawled.visited.len(), 1);

@@ -7,9 +7,9 @@ use std::{
 use tantivy::{schema::Schema, Index as TantivyIndex};
 
 use crate::{
-    internal::schema::Schema as SchemaTrait,
     domain::prelude::Error,
-    prelude::{Workflow, WORKDIR},
+    internal::schema::Schema as SchemaTrait,
+    prelude::{Workflow, INDEX_DIR, WORKDIR},
 };
 
 #[derive(Clone)]
@@ -66,9 +66,10 @@ impl Index {
             Error::SchemaError(Some(format!("Error getting current dir: {:?}", e).into()))
         })?;
 
+        // TODO: Make this configurable. Bad for testing. See `test_execute_scan`.
         let index_path = Path::new(&current_dir)
             .join::<&str>(&WORKDIR)
-            .join::<&str>("index");
+            .join::<&str>(INDEX_DIR);
 
         let schema = Workflow::schema();
 

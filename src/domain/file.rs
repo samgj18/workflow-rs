@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use crate::prelude::{Error, Unit};
 
@@ -8,6 +8,25 @@ pub enum FileExtension {
     Yaml,
     Yml,
     None,
+}
+
+impl FileExtension {
+    pub fn format(name: &str) -> HashSet<String> {
+        let mut values = HashSet::new();
+        match FileExtension::from(name) {
+            FileExtension::Yaml | FileExtension::Yml => values.insert(name.to_string()),
+            FileExtension::None => values.insert(format!("{}.yaml", name)),
+        };
+
+        values
+    }
+
+    pub fn format_all(names: HashSet<String>) -> HashSet<String> {
+        names
+            .iter()
+            .flat_map(|name| FileExtension::format(name))
+            .collect::<HashSet<String>>()
+    }
 }
 
 impl<'a> From<&'a str> for FileExtension {
@@ -22,6 +41,7 @@ impl<'a> From<&'a str> for FileExtension {
     }
 }
 
+#[derive(Debug)]
 pub struct File {
     path: String,
 }

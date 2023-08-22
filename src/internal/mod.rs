@@ -41,15 +41,10 @@ pub mod prelude {
 
     /// Prepare the workflow for execution.
     pub fn prepare_workflows(names: &[&str], location: &str) -> Result<Vec<Workflow>, Error> {
-        let mut values = HashSet::new();
-        // let location = command.location().unwrap_or(&WORKDIR);
-
-        names.iter().for_each(|name| {
-            match FileExtension::from(*name) {
-                FileExtension::Yaml | FileExtension::Yml => values.insert(name.to_string()),
-                FileExtension::None => values.insert(format!("{}.yaml", name)),
-            };
-        });
+        let values = names
+            .iter()
+            .flat_map(|name| FileExtension::format(name))
+            .collect::<HashSet<String>>();
 
         values
             .iter()
