@@ -37,7 +37,7 @@ impl Writer {
     ///
     /// # Note
     /// This method commits on every call. If you want to add many documents at once, use `add_many`.
-    pub fn add<T>(&mut self, id: u64, body: &T) -> Result<Opstamp, Error>
+    pub fn add<T>(&mut self, id: &str, body: &T) -> Result<Opstamp, Error>
     where
         T: Serialize + DeserializeOwned,
     {
@@ -59,7 +59,7 @@ impl Writer {
         })?;
 
         let mut doc = Document::default();
-        doc.add_u64(id_field, id);
+        doc.add_text(id_field, id);
         doc.add_json_object(body_field, body);
 
         self.add_document(doc)

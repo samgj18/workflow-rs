@@ -3,11 +3,11 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, SetSize},
 };
-use inquire::Select;
+use inquire::{Select, Text};
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Crawler, File, Indexer, Output, Unit, INDEX_DIR, WORKDIR, WRITER},
+    prelude::{Crawler, File, Indexer, Output, Prepare, Run, Unit, INDEX_DIR, WORKDIR, WRITER},
 };
 
 use super::prelude::Parser;
@@ -109,9 +109,21 @@ impl Executor<Workflow, Output> for Command {
                 Command::Run(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
-                Command::Search(_) => Err(Error::InvalidCommand(Some(
-                    "Please provide a workflow. See --help".into(),
-                ))),
+                Command::Search(command) => {
+                    let workflow = Text::new("Search for a workflow")
+                        .with_autocomplete(command.clone())
+                        .prompt()
+                        .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+                    let workflow = workflow.trim().to_string();
+
+                    println!("{}", workflow);
+
+                    // Trigger the Run command
+                    let command = Command::Run(Run::new(&workflow));
+                    let args = command.prepare()?;
+                    command.execute(args)
+                }
                 Command::Index(command) => {
                     match command {
                         Indexer::Clean(_) => {
@@ -242,7 +254,6 @@ mod tests {
 
         // This is part of the same hack to restore previous state
         Crawler::crawl(WORKFLOW, &WRITER).unwrap();
-
 
         assert!(is_ok);
         assert_eq!(message, "Scan cleaned at ./specs");

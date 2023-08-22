@@ -8,6 +8,18 @@ impl SearchTerm {
 
 pub struct SearchTermLimit(usize);
 
+impl From<usize> for SearchTermLimit {
+    fn from(limit: usize) -> Self {
+        Self(limit)
+    }
+}
+
+impl Default for SearchTermLimit {
+    fn default() -> Self {
+        Self(10)
+    }
+}
+
 impl SearchTermLimit {
     pub fn inner(&self) -> usize {
         self.0

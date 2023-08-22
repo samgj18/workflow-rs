@@ -1,4 +1,11 @@
 use clap::Parser;
+use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
+use workflow::IndexedWorkflow;
+
+use crate::{
+    domain::workflow,
+    prelude::{SearchTerm, SearchTermLimit, READER},
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -22,7 +29,6 @@ pub struct Run {
 }
 
 impl Run {
-    #[cfg(test)]
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -56,26 +62,81 @@ impl Indexer {
 #[command(about = "Create a new index deleting existing one, e.g. `workflow index create`")]
 pub struct Create {}
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
+#[command(about = "Remove existing index, e.g. `workflow index clean`")]
+pub struct Clean {}
+
+#[derive(Parser, Debug, Clone)]
 #[command(about = "Search for workflows, e.g. `workflow search <query>`")]
 pub struct Search {
     #[arg(short, long, help = "The query to search for")]
-    query: String,
+    query: Option<String>,
 }
 
 impl Search {
     #[cfg(test)]
-    pub fn new(query: &str) -> Self {
+    pub fn new(query: Option<&str>) -> Self {
         Self {
-            query: query.to_string(),
+            query: query.map(|s| s.to_string()),
         }
     }
 
-    pub fn query(&self) -> &str {
-        &self.query
+    pub fn query(&self) -> Option<&str> {
+        self.query.as_deref()
     }
 }
 
-#[derive(Parser, Debug, Default)]
-#[command(about = "Remove existing index, e.g. `workflow index clean`")]
-pub struct Clean {}
+impl Autocomplete for Search {
+    /// Is called whenever the user's text input is modified
+    fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, CustomUserError> {
+        let fields = vec!["body"];
+        let input = if input.is_empty() {
+            "*".to_string()
+        } else {
+            format!(
+                "body:{}* OR body.name:{}* OR body.description:{}* OR body.tags:{}* OR body.author:{}* OR body.version:{}*",
+                input, input, input, input, input, input
+            )
+        };
+        let term = SearchTerm::from(
+            input.as_str(), // format!("body.name:{} OR body.description:{}", input, input,).as_str(),
+        );
+        let limit = SearchTermLimit::from(100);
+        let workflow = READER
+            .clone()
+            .get_as::<IndexedWorkflow>(&term, &fields, Some(limit).as_ref())
+            .map_err(|e| CustomUserError::from(e.to_string()));
+
+        let mut suggestions = vec![];
+
+        if let Ok(workflow) = workflow {
+            for (_, workflow) in workflow {
+                suggestions.push(workflow.name().to_string());
+            }
+        }
+
+        Ok(suggestions)
+    }
+
+    /// Is called whenever the user presses tab
+    fn get_completion(
+        &mut self,
+        input: &str,
+        highlighted_suggestion: Option<String>,
+    ) -> Result<inquire::autocompletion::Replacement, CustomUserError> {
+        match highlighted_suggestion {
+            Some(suggestion) => Ok(Replacement::Some(suggestion)),
+            None => {
+                let completion = {
+                    let suggestions = self.get_suggestions(input)?;
+                    suggestions.first().map(|s| s.to_string())
+                };
+
+                match completion {
+                    Some(completion) => Ok(Replacement::Some(completion)),
+                    None => Ok(Replacement::None),
+                }
+            }
+        }
+    }
+}
