@@ -7,7 +7,10 @@ use inquire::{Select, Text};
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Crawler, File, Indexer, Output, Prepare, Run, Unit, INDEX_DIR, WORKDIR, WRITER},
+    prelude::{
+        prepare_workflows, Crawler, File, Indexer, Output, Prepare, Run, Unit, WorkflowDescription,
+        INDEX_DIR, WORKDIR, WRITER,
+    },
 };
 
 use super::prelude::Parser;
@@ -90,17 +93,47 @@ impl Executor<Workflow, Output> for Command {
                         .try_for_each::<_, Result<Unit, Error>>(|file| {
                             let file = file.map_err(|e| Error::Io(Some(e.into())))?;
                             let path = file.path().display().to_string();
-                            let text = format!(
-                                "{}{}{}{}",
-                                SetForegroundColor(Color::Green), // Set the text color to red
-                                "- ",
-                                path,
-                                ResetColor,
-                            );
+
+                            // Read the file and gather descriptions
+                            let name = path.split('/').last();
+                            // Conver option to HashSet
+                            let name = name.map_or_else(Vec::new, |name| vec![name]);
+
+                            let workflows: Vec<String> = prepare_workflows(&name, &WORKDIR)?
+                                .into_iter()
+                                .map(|workflow| {
+                                    let description = workflow
+                                        .description()
+                                        .map(|description| description.to_owned())
+                                        .unwrap_or(WorkflowDescription::new("No description"));
+                                    let name = workflow.name();
+                                    let command = workflow.command();
+
+                                    let description =
+                                        format!("Description: {}", description.inner());
+                                    let name = format!(
+                                        "{}{}{}: ",
+                                        SetForegroundColor(Color::Green),
+                                        name.inner(),
+                                        ResetColor
+                                    );
+                                    let command = format!("Command: {}", command.inner());
+
+                                    format!(
+                                        "* {}{}\n{}\n{}{}{}",
+                                        SetForegroundColor(Color::White),
+                                        name,
+                                        description,
+                                        command,
+                                        "\n",
+                                        ResetColor,
+                                    )
+                                })
+                                .collect();
 
                             paths.push(path);
 
-                            println!("{}", text);
+                            println!("{}", workflows.join("\n"));
                             Ok(())
                         })?;
 
@@ -117,9 +150,6 @@ impl Executor<Workflow, Output> for Command {
 
                     let workflow = workflow.trim().to_string();
 
-                    println!("{}", workflow);
-
-                    // Trigger the Run command
                     let command = Command::Run(Run::new(&workflow));
                     let args = command.prepare()?;
                     command.execute(args)
@@ -133,8 +163,6 @@ impl Executor<Workflow, Output> for Command {
                             if path.exists() {
                                 path.remove_all().and_then(|_| path.create_dir_all())?;
                             }
-
-                            println!("{}", &path.path());
 
                             let text = format!(
                                 "{}{}{}{}",

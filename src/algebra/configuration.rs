@@ -19,6 +19,10 @@ impl FromStr for Configuration {
         let splitted = input.split('\n').collect::<Vec<&str>>();
         let mut configurations = HashMap::new();
         splitted.iter().for_each(|line| {
+            if line.starts_with('#') {
+                return;
+            }
+
             let configuration = line.trim().split('=').collect::<Vec<&str>>();
             if configuration.len() != 2 {
                 return;

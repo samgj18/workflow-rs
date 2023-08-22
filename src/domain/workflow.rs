@@ -22,6 +22,10 @@ impl WorkflowName {
 pub struct WorkflowDescription(String);
 
 impl WorkflowDescription {
+    pub fn new(value: &str) -> Self {
+        Self(value.into())
+    }
+
     pub fn inner(&self) -> &str {
         &self.0
     }

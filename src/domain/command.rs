@@ -1,9 +1,8 @@
 use clap::Parser;
 use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
-use workflow::IndexedWorkflow;
 
 use crate::{
-    domain::workflow,
+    domain::workflow::IndexedWorkflow,
     prelude::{SearchTerm, SearchTermLimit, READER},
 };
 
