@@ -3,6 +3,7 @@ pub mod command;
 pub mod error;
 pub mod executor;
 pub mod file;
+pub mod index;
 pub mod workflow;
 
 pub mod prelude {
@@ -16,6 +17,8 @@ pub mod prelude {
     pub use super::executor::*;
     #[doc(inline)]
     pub use super::file::*;
+    #[doc(inline)]
+    pub use super::index::*;
     #[doc(inline)]
     pub use super::workflow::*;
 }

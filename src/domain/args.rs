@@ -12,6 +12,16 @@ impl ArgumentName {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ArgumentDescription(String);
 
+impl ArgumentDescription {
+    pub fn new(value: &str) -> Self {
+        Self(value.into())
+    }
+
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ArgumentDefault(String);
 

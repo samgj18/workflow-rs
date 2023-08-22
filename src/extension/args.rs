@@ -1,12 +1,4 @@
-use std::collections::HashSet;
-
-use crate::{
-    domain::{
-        command::Command,
-        prelude::{Error, FileExtension, Workflow},
-    },
-    prelude::WORKDIR,
-};
+use crate::prelude::*;
 
 pub trait Prepare {
     /// Given a workflow name, returns an `Option` of `Workflow`
@@ -27,37 +19,19 @@ impl Prepare for Command {
     fn prepare(&self) -> Result<Option<Workflow>, Error> {
         match self {
             Command::Run(command) => {
-                let name = command.name();
-                let mut values = HashSet::new();
-                let location = command.location().unwrap_or(&WORKDIR);
+                let names: &[&str] = &[command.name()];
+                let location: &str = &WORKDIR;
 
-                match FileExtension::from(name) {
-                    FileExtension::Yaml | FileExtension::Yml => values.insert(name.to_string()),
-                    FileExtension::None => values.insert(format!("{}.yaml", name)),
-                };
-
-                values
-                    .iter()
-                    .map(|value| {
-                        load_workflow_file(location, value).and_then(parse_workflow_string)
-                    })
-                    .collect::<Result<Vec<Workflow>, Error>>()?
+                prepare_workflows(names, location)?
                     .pop()
                     .ok_or(Error::InvalidName(None))
                     .map(Some)
             }
             Command::List(_) => Ok(None),
+            Command::Search(_) => Ok(None),
+            Command::Index(_) => Ok(None),
         }
     }
-}
-
-fn load_workflow_file(workdir: &str, value: &str) -> Result<String, Error> {
-    let path = format!("{}/{}", workdir, value);
-    std::fs::read_to_string(path).map_err(|e| Error::ReadError(Some(e.into())))
-}
-
-fn parse_workflow_string(workflow: String) -> Result<Workflow, Error> {
-    serde_yaml::from_str::<Workflow>(&workflow).map_err(|e| Error::ParseError(Some(e.into())))
 }
 
 #[cfg(test)]
@@ -66,6 +40,7 @@ mod tests {
     use crate::prelude::Run;
 
     pub const WORKDIR: &str = "./specs";
+    // Publish workdir as a env variable
 
     #[test]
     fn test_load_workflow_file() {
@@ -86,7 +61,8 @@ mod tests {
 
     #[test]
     fn test_prepare() {
-        let command = Command::Run(Run::new("echo.yml", Some(WORKDIR)));
+        std::env::set_var("WORKFLOW_DIR", WORKDIR);
+        let command = Command::Run(Run::new("echo.yml"));
         let result = command.prepare();
 
         let name = result.as_ref().unwrap().as_ref().unwrap().name().inner();

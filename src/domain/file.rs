@@ -1,9 +1,32 @@
+use std::{collections::HashSet, path::Path};
+
+use crate::prelude::{Error, Unit};
+
 /// File extension enum for yaml and yml
 #[derive(Debug, PartialEq)]
 pub enum FileExtension {
     Yaml,
     Yml,
     None,
+}
+
+impl FileExtension {
+    pub fn format(name: &str) -> HashSet<String> {
+        let mut values = HashSet::new();
+        match FileExtension::from(name) {
+            FileExtension::Yaml | FileExtension::Yml => values.insert(name.to_string()),
+            FileExtension::None => values.insert(format!("{}.yaml", name)),
+        };
+
+        values
+    }
+
+    pub fn format_all(names: HashSet<String>) -> HashSet<String> {
+        names
+            .iter()
+            .flat_map(|name| FileExtension::format(name))
+            .collect::<HashSet<String>>()
+    }
 }
 
 impl<'a> From<&'a str> for FileExtension {
@@ -15,6 +38,35 @@ impl<'a> From<&'a str> for FileExtension {
         } else {
             FileExtension::None
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct File {
+    path: String,
+}
+
+impl File {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn exists(&self) -> bool {
+        Path::new(&self.path).exists()
+    }
+
+    pub fn remove_all(&self) -> Result<Unit, Error> {
+        std::fs::remove_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
+    }
+
+    pub fn create_dir_all(&self) -> Result<Unit, Error> {
+        std::fs::create_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
     }
 }
 

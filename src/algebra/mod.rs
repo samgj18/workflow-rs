@@ -1,12 +1,18 @@
-pub mod args;
-pub mod executor;
-pub mod parser;
+pub mod configuration;
+pub mod crawler;
+pub mod index;
+pub mod reader;
+pub mod writer;
 
 pub mod prelude {
     #[doc(inline)]
-    pub use super::args::*;
+    pub use super::configuration::*;
     #[doc(inline)]
-    pub use super::executor::*;
+    pub use super::crawler::*;
     #[doc(inline)]
-    pub use super::parser::*;
+    pub use super::index::*;
+    #[doc(inline)]
+    pub use super::reader::*;
+    #[doc(inline)]
+    pub use super::writer::*;
 }

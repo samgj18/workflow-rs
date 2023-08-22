@@ -22,6 +22,10 @@ impl WorkflowName {
 pub struct WorkflowDescription(String);
 
 impl WorkflowDescription {
+    pub fn new(value: &str) -> Self {
+        Self(value.into())
+    }
+
     pub fn inner(&self) -> &str {
         &self.0
     }
@@ -231,6 +235,21 @@ impl Workflow {
         }
 
         result
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IndexedWorkflow {
+    id: Vec<String>,
+    body: Vec<Workflow>,
+}
+
+impl IndexedWorkflow {
+    pub fn name(&self) -> String {
+        self.body
+            .first()
+            .map(|workflow| workflow.name().inner().to_owned())
+            .unwrap_or_default()
     }
 }
 
