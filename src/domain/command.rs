@@ -5,6 +5,9 @@ use clap::Parser;
 pub enum Command {
     Run(Run),
     List(List),
+    Scan(Scan),
+    Clean(Clean),
+    Search(Search),
 }
 
 #[derive(Parser, Debug)]
@@ -61,3 +64,62 @@ impl Run {
         self.location.as_deref()
     }
 }
+
+#[derive(Parser, Debug)]
+#[command(about = "Scan and index workflows, e.g. `workflow scan`")]
+pub struct Scan {
+    #[arg(
+        short,
+        long,
+        help = "The location of the workflows: [default: $HOME/.workflow]"
+    )]
+    location: Option<String>,
+}
+
+impl Scan {
+    #[cfg(test)]
+    pub fn new(location: Option<&str>) -> Self {
+        Self {
+            location: location.map(|s| s.to_string()),
+        }
+    }
+
+    pub fn location(&self) -> Option<&str> {
+        self.location.as_deref()
+    }
+}
+
+#[derive(Parser, Debug)]
+#[command(about = "Search for workflows, e.g. `workflow search <query>`")]
+pub struct Search {
+    #[arg(short, long, help = "The query to search for")]
+    query: String,
+    #[arg(
+        short,
+        long,
+        help = "The location of the workflows: [default: $HOME/.workflow]"
+    )]
+    location: Option<String>,
+}
+
+impl Search {
+    #[cfg(test)]
+    pub fn new(query: &str, location: Option<&str>) -> Self {
+        Self {
+            query: query.to_string(),
+            location: location.map(|s| s.to_string()),
+        }
+    }
+
+    pub fn query(&self) -> &str {
+        &self.query
+    }
+
+    pub fn location(&self) -> Option<&str> {
+        self.location.as_deref()
+    }
+}
+
+#[derive(Parser, Debug)]
+#[command(about = "Clean the index, e.g. `workflow clean`")]
+pub struct Clean {}

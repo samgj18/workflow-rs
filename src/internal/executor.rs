@@ -7,7 +7,7 @@ use inquire::Select;
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Output, Unit, WORKDIR},
+    prelude::{Crawler, File, Output, Unit, INDEX_DIR, WORKDIR, WRITER},
 };
 
 use super::prelude::Parser;
@@ -67,7 +67,10 @@ impl Executor<Workflow, Output> for Command {
                         }
                         Ok(Output::new("command", &command))
                     }
-                    _ => Ok(Output::unsupported()),
+                    Command::List(_) => Ok(Output::unsupported()),
+                    Command::Scan(_) => Ok(Output::unsupported()),
+                    Command::Clean(_) => Ok(Output::unsupported()),
+                    Command::Search(_) => Ok(Output::unsupported()),
                 }
             }
             None => match self {
@@ -104,8 +107,39 @@ impl Executor<Workflow, Output> for Command {
 
                     Ok(Output::new("list", &paths.join("\n")))
                 }
-                _ => Err(Error::InvalidCommand(Some(
-                    "Please provide a command. See --help".into(),
+                Command::Run(_) => Err(Error::InvalidCommand(Some(
+                    "Please provide a workflow. See --help".into(),
+                ))),
+                Command::Scan(command) => {
+                    let location = command.location().unwrap_or(&WORKDIR);
+                    let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+
+                    if path.exists() {
+                        path.remove_all().and_then(|_| path.create_dir_all())?;
+                    }
+
+                    Crawler::crawl(location, &WRITER).map_err(|e| Error::Io(Some(e.into())))?;
+
+                    let text = format!(
+                        "{}{}{}{}",
+                        SetForegroundColor(Color::Green), // Set the text color to red
+                        "Scan created at ",
+                        location,
+                        ResetColor,
+                    );
+
+                    println!("{}", text);
+
+                    Ok(Output::new(
+                        "scan",
+                        &format!("Scan created at {}", location),
+                    ))
+                }
+                Command::Clean(_) => Err(Error::InvalidCommand(Some(
+                    "Please provide a workflow. See --help".into(),
+                ))),
+                Command::Search(_) => Err(Error::InvalidCommand(Some(
+                    "Please provide a workflow. See --help".into(),
                 ))),
             },
         }
@@ -115,7 +149,7 @@ impl Executor<Workflow, Output> for Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prelude::List;
+    use crate::prelude::{List, Scan};
 
     pub const WORKFLOW: &str = "./specs";
 
@@ -148,5 +182,19 @@ mod tests {
         assert!(is_ok);
         assert_eq!(message, "./specs/echo.yml");
         assert_eq!(r#type, "list");
+    }
+
+    #[test]
+    fn test_execute_scan() {
+        let command = Command::Scan(Scan::new(Some(WORKFLOW)));
+
+        let result = command.execute(None);
+        let message = result.as_ref().unwrap().message();
+        let r#type = result.as_ref().unwrap().r#type();
+        let is_ok = result.is_ok();
+
+        assert!(is_ok);
+        assert_eq!(message, "Scan created at ./specs");
+        assert_eq!(r#type, "scan");
     }
 }

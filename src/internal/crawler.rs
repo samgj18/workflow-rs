@@ -4,12 +4,26 @@ use std::{
     io::{Seek, SeekFrom},
 };
 
-use crate::prelude::{prepare_workflows, Error, Unit, Workflow, Writer};
+use crate::prelude::{prepare_workflows, Error, File, Unit, Workflow, Writer};
 
-const HISTORY: &str = "history.json";
+pub const HISTORY: &str = "history.json";
+pub const INDEX_DIR: &str = "index";
 
 pub struct Crawler {}
 
+#[derive(Debug)]
+struct Finding {
+    visited: HashSet<String>,
+    non_visited: HashSet<String>,
+}
+
+impl Finding {
+    pub fn union(&self) -> HashSet<String> {
+        self.visited.union(&self.non_visited).cloned().collect()
+    }
+}
+
+// TODO: Refactor this.
 impl Crawler {
     /// Visit the given directory, look for history.json if it exists, create it if it doesn't.
     /// `history.json` is a file that contains the names of all the files that have been visited and indexed.
@@ -21,54 +35,55 @@ impl Crawler {
     /// * `directory` - The directory to visit.
     ///
     /// # Returns
-    /// A set of names of the files that have not been visited.
-    fn non_visited(names: HashSet<String>, directory: &str) -> Result<HashSet<String>, Error> {
+    /// A `Result` containing a `Finding` if the directory was visited successfully, or an `Error` if it wasn't.
+    fn finding(names: HashSet<String>, directory: &str) -> Result<Finding, Error> {
         let mut file = std::fs::OpenOptions::new();
-        let exists = file
-            .write(true)
-            .read(true)
-            .open(format!("{}/{}", directory, HISTORY))
-            .is_ok();
+        let path = format!("{}/{}", directory, HISTORY);
+        let exists = File::new(&path).exists();
 
         if !exists {
-            let writer = file
-                .write(true)
-                .read(true)
-                .create(true)
-                .open(format!("{}/{}", directory, HISTORY))
-                .map_err(|e| Error::Io(Some(e.into())))?;
-
-            // Write an empty set to the file.
-            let empty: HashSet<String> = HashSet::new();
-            let merged: HashSet<String> = empty.union(&names).cloned().collect();
-            serde_json::to_writer(&writer, &merged)
-                .map_err(|e| Error::ParseError(Some(e.into())))?;
-
-            Ok(names)
+            Ok(Finding {
+                visited: HashSet::new(),
+                non_visited: names,
+            })
         } else {
-            let mut writer = file
+            let mut writer: std::fs::File = file
                 .read(true)
                 .write(true)
-                .create(true)
-                .open(format!("{}/{}", directory, HISTORY))
+                .open(path)
                 .map_err(|e| Error::Io(Some(e.into())))?;
 
             let history: HashSet<String> = serde_json::from_reader(&mut writer)
                 .map_err(|e| Error::ParseError(Some(e.into())))?;
 
-            let merged: HashSet<String> = history.union(&names).cloned().collect();
-
-            // Empty the file.
-            writer
-                .seek(SeekFrom::Start(0))
-                .map_err(|e| Error::Io(Some(e.into())))?;
-            writer.set_len(0).map_err(|e| Error::Io(Some(e.into())))?;
-
-            serde_json::to_writer(&mut writer, &merged)
-                .map_err(|e| Error::ParseError(Some(e.into())))?;
-
-            Ok(names.difference(&history).cloned().collect())
+            Ok(Finding {
+                non_visited: names.difference(&history).cloned().collect(),
+                visited: history,
+            })
         }
+    }
+
+    /// Write the given set to the given writer.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The writer to write to.
+    /// * `set` - The set to write.
+    fn write(directory: &str, set: &HashSet<String>) -> Result<Unit, Error> {
+        let mut writer = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(directory)
+            .map_err(|e| Error::Io(Some(e.into())))?;
+
+        writer
+            .seek(SeekFrom::Start(0))
+            .map_err(|e| Error::Io(Some(e.into())))?;
+        writer.set_len(0).map_err(|e| Error::Io(Some(e.into())))?;
+
+        serde_json::to_writer(&mut writer, &set).map_err(|e| Error::ParseError(Some(e.into())))?;
+        Ok(())
     }
 
     /// Crawl the given directory for files and index them.
@@ -83,7 +98,8 @@ impl Crawler {
     ///
     /// * `directory` - The directory to crawl.
     /// * `writer` - The writer to use for indexing.
-    pub fn crawl(directory: &str, writer: &mut Writer) -> Result<Unit, Error> {
+    pub fn crawl(directory: &str, writer: &Writer) -> Result<Unit, Error> {
+        let path = format!("{}/{}", directory, INDEX_DIR);
         let files: ReadDir = std::fs::read_dir(directory).map_err(|e| Error::Io(Some(e.into())))?;
 
         let names: Vec<String> = files
@@ -108,12 +124,12 @@ impl Crawler {
                 },
             )?;
 
-        let remaining: HashSet<String> = Self::non_visited(
-            names.into_iter().collect(),
-            format!("{}/{}", directory, "index").as_str(),
-        )?;
+        let finding = Self::finding(names.into_iter().collect(), path.as_str())?;
+        let path = format!("{}/{}/{}", directory, INDEX_DIR, HISTORY);
+        Self::write(&path, &finding.union())?;
 
-        let names: &[&str] = &remaining
+        let names: &[&str] = &finding
+            .non_visited
             .iter()
             .map(|name| name.as_str())
             .collect::<Vec<&str>>();
@@ -128,6 +144,8 @@ impl Crawler {
             .iter()
             .map(|(name, workflow)| (name.as_str(), workflow.clone()))
             .collect::<Vec<(&str, Workflow)>>();
+
+        let mut writer = writer.clone();
 
         writer.add_many(workflows)?;
 
@@ -144,28 +162,23 @@ mod tests {
     fn test_non_visited_when_history_doesnt_exist() {
         let path = format!("{}/{}", WORKDIR, "empty");
 
-        // Delete empty folder if it exists.
-        if std::path::Path::new(&path).exists() {
-            std::fs::remove_dir_all(&path).unwrap();
-        }
-
-        std::fs::create_dir(&path).unwrap();
-
         let names = vec!["echo".to_owned()].into_iter().collect();
 
-        let crawled = Crawler::non_visited(names, &path).unwrap();
+        let crawled = Crawler::finding(names, &path).unwrap();
 
-        assert_eq!(crawled.len(), 1);
-        assert!(crawled.contains("echo"));
+        assert_eq!(crawled.non_visited.len(), 1);
+        assert!(crawled.visited.is_empty());
+        assert!(crawled.non_visited.contains("echo"));
     }
 
     #[test]
     fn test_non_visited_when_history_exists() {
-        let path = format!("{}/{}", WORKDIR, "index");
+        let path = format!("{}/{}", WORKDIR, INDEX_DIR);
         let names = vec!["echo".to_owned()].into_iter().collect();
 
-        let crawled = Crawler::non_visited(names, &path).unwrap();
+        let crawled = Crawler::finding(names, &path).unwrap();
 
-        assert_eq!(crawled.len(), 0);
+        assert_eq!(crawled.non_visited.len(), 0);
+        assert_eq!(crawled.visited.len(), 1);
     }
 }

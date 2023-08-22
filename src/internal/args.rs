@@ -28,6 +28,9 @@ impl Prepare for Command {
                     .map(Some)
             }
             Command::List(_) => Ok(None),
+            Command::Scan(_) => Ok(None),
+            Command::Search(_) => Ok(None),
+            Command::Clean(_) => Ok(None),
         }
     }
 }
