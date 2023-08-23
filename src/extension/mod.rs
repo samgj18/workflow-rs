@@ -15,10 +15,11 @@ pub mod prelude {
 
     use crate::prelude::{Error, FileExtension, Workflow};
     use std::collections::HashSet;
+    use std::path::Path;
 
     /// Load the workflow file from the given location.
-    pub(crate) fn load_workflow_file(workdir: &str, value: &str) -> Result<String, Error> {
-        let path = format!("{}/{}", workdir, value);
+    pub(crate) fn load_workflow_file(workdir: &Path, value: &Path) -> Result<String, Error> {
+        let path = Path::new(&workdir).join(value);
         std::fs::read_to_string(path).map_err(|e| Error::ReadError(Some(e.into())))
     }
 
@@ -28,7 +29,7 @@ pub mod prelude {
     }
 
     /// Prepare the workflow for execution.
-    pub fn prepare_workflows(names: &[&str], location: &str) -> Result<Vec<Workflow>, Error> {
+    pub fn prepare_workflows(names: &[&str], location: &Path) -> Result<Vec<Workflow>, Error> {
         let values = names
             .iter()
             .flat_map(|name| FileExtension::format(name))
@@ -36,7 +37,9 @@ pub mod prelude {
 
         values
             .iter()
-            .map(|value| load_workflow_file(location, value).and_then(parse_workflow_string))
+            .map(|value| {
+                load_workflow_file(location, Path::new(value)).and_then(parse_workflow_string)
+            })
             .collect::<Result<Vec<Workflow>, Error>>()
     }
 }

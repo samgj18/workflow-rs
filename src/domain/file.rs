@@ -1,4 +1,7 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::prelude::{Error, Unit};
 
@@ -43,22 +46,14 @@ impl<'a> From<&'a str> for FileExtension {
 
 #[derive(Debug)]
 pub struct File {
-    path: String,
+    path: PathBuf,
 }
 
 impl File {
-    pub fn new(path: &str) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_string(),
+            path: path.to_path_buf(),
         }
-    }
-
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    pub fn exists(&self) -> bool {
-        Path::new(&self.path).exists()
     }
 
     pub fn remove_all(&self) -> Result<Unit, Error> {

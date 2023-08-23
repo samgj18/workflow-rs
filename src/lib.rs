@@ -3,6 +3,7 @@ pub mod domain;
 pub mod extension;
 
 pub mod prelude {
+    use std::path::Path;
     use std::str::FromStr;
 
     use once_cell::sync::Lazy;
@@ -30,7 +31,7 @@ pub mod prelude {
             }
         };
 
-        let path = format!("{}/.config/workflows", home_env_var);
+        let path = Path::new(&home_env_var).join(".config").join("workflows");
         let configuration: Result<Result<Configuration, Error>, Error> =
             std::fs::read_to_string(path)
                 .map(|s| Configuration::from_str(&s))
@@ -45,7 +46,11 @@ pub mod prelude {
             Ok(home) => home,
             Err(_) => match configuration {
                 Ok(Ok(path)) => path.workflow_dir().to_owned(),
-                _ => format!("{}/.workflows", home_env_var),
+                _ => Path::new(home_env_var)
+                    .join(".workflows")
+                    .to_str()
+                    .expect("Failed to convert path to string")
+                    .to_owned(),
             },
         }
     });

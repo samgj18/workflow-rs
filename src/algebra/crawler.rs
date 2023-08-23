@@ -2,9 +2,10 @@ use std::{
     collections::HashSet,
     fs::ReadDir,
     io::{Seek, SeekFrom},
+    path::Path,
 };
 
-use crate::prelude::{prepare_workflows, Error, File, FileExtension, Unit, Workflow, Writer};
+use crate::prelude::{prepare_workflows, Error, FileExtension, Unit, Workflow, Writer};
 
 pub const HISTORY: &str = "history.json";
 pub const INDEX_DIR: &str = "index";
@@ -36,10 +37,10 @@ impl Crawler {
     ///
     /// # Returns
     /// A `Result` containing a `Finding` if the directory was visited successfully, or an `Error` if it wasn't.
-    fn finding(names: HashSet<String>, directory: &str) -> Result<Finding, Error> {
+    fn finding(names: HashSet<String>, directory: &Path) -> Result<Finding, Error> {
         let mut file = std::fs::OpenOptions::new();
-        let path = format!("{}/{}", directory, HISTORY);
-        let exists = File::new(&path).exists();
+        let path = Path::new(&directory).join(HISTORY);
+        let exists = path.exists();
         let names = FileExtension::format_all(names);
 
         if !exists {
@@ -70,7 +71,7 @@ impl Crawler {
     ///
     /// * `writer` - The writer to write to.
     /// * `set` - The set to write.
-    fn write(directory: &str, set: &HashSet<String>) -> Result<Unit, Error> {
+    fn write(directory: &Path, set: &HashSet<String>) -> Result<Unit, Error> {
         let mut writer = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -99,8 +100,8 @@ impl Crawler {
     ///
     /// * `directory` - The directory to crawl.
     /// * `writer` - The writer to use for indexing.
-    pub fn crawl(directory: &str, writer: &Writer) -> Result<Unit, Error> {
-        let path = format!("{}/{}", directory, INDEX_DIR);
+    pub fn crawl(directory: &Path, writer: &Writer) -> Result<Unit, Error> {
+        let path = Path::new(&directory).join(INDEX_DIR);
         let files: ReadDir = std::fs::read_dir(directory).map_err(|e| Error::Io(Some(e.into())))?;
 
         let names: Vec<String> = files
@@ -125,8 +126,8 @@ impl Crawler {
                 },
             )?;
 
-        let finding = Self::finding(names.into_iter().collect(), path.as_str())?;
-        let write_path = format!("{}/{}/{}", directory, INDEX_DIR, HISTORY);
+        let finding = Self::finding(names.into_iter().collect(), &path)?;
+        let write_path = Path::new(&directory).join(INDEX_DIR).join(HISTORY);
         Self::write(&write_path, &finding.union())?;
 
         let names: &[&str] = &finding
@@ -161,7 +162,7 @@ mod tests {
     pub const WORKDIR: &str = "./specs";
     #[test]
     fn test_non_visited_when_history_doesnt_exist() {
-        let path = format!("{}/{}", WORKDIR, "empty");
+        let path = Path::new(&WORKDIR).join("empty");
 
         let names = vec!["echo".to_owned()].into_iter().collect();
 
@@ -174,8 +175,8 @@ mod tests {
 
     #[test]
     fn test_non_visited_when_history_exists() {
-        let path = format!("{}/{}", WORKDIR, INDEX_DIR);
         let names = vec!["echo.yml".to_owned()].into_iter().collect();
+        let path = Path::new(&WORKDIR).join(INDEX_DIR);
 
         let crawled = Crawler::finding(names, &path).unwrap();
 

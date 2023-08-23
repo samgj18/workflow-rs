@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
@@ -101,10 +103,12 @@ impl Executor<Workflow, Output> for Command {
 
                             // Read the file and gather descriptions
                             let name = path.split('/').last();
-                            // Conver option to HashSet
+                            // Convert option to HashSet
                             let name = name.map_or_else(Vec::new, |name| vec![name]);
+                            let location: &str = &WORKDIR;
+                            let workdir = Path::new(location);
 
-                            let workflows: Vec<String> = prepare_workflows(&name, &WORKDIR)?
+                            let workflows: Vec<String> = prepare_workflows(&name, workdir)?
                                 .into_iter()
                                 .map(|workflow| {
                                     let description = workflow
@@ -164,9 +168,10 @@ impl Executor<Workflow, Output> for Command {
                     match command {
                         Indexer::Clean(_) => {
                             let location: &str = &WORKDIR;
-                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+                            let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
+                                let path = File::new(&path);
                                 path.remove_all().and_then(|_| path.create_dir_all())?;
                             }
 
@@ -187,13 +192,14 @@ impl Executor<Workflow, Output> for Command {
                         }
                         Indexer::Create(_) => {
                             let location: &str = &WORKDIR;
-                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+                            let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
+                                let path = File::new(&path);
                                 path.remove_all().and_then(|_| path.create_dir_all())?;
                             }
 
-                            Crawler::crawl(location, &WRITER)
+                            Crawler::crawl(Path::new(location), &WRITER)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
 
                             let text = format!(
@@ -225,7 +231,22 @@ mod tests {
     use super::*;
     use crate::prelude::List;
 
-    pub const WORKFLOW: &str = "./specs";
+    pub const WORKFLOW: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs"
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            "./specs"
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            "./specs"
+        }
+    };
 
     // Depends on https://github.com/mikaelmello/inquire/issues/70
     // #[test]
@@ -338,7 +359,7 @@ mod tests {
         let is_ok = result.is_ok();
 
         // This is part of the same hack to restore previous state
-        Crawler::crawl(WORKFLOW, &WRITER).unwrap();
+        Crawler::crawl(Path::new(WORKFLOW), &WRITER).unwrap();
 
         let path = {
             #[cfg(target_os = "windows")]
