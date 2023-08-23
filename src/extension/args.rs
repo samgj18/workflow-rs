@@ -47,13 +47,7 @@ mod tests {
         {
             ".\\specs"
         }
-
-        #[cfg(target_os = "linux")]
-        {
-            "./specs"
-        }
-
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             "./specs"
         }
@@ -64,13 +58,7 @@ mod tests {
         {
             std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
         }
-
-        #[cfg(target_os = "linux")]
-        {
-            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
-        }
-
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             std::env::set_var("WORKFLOW_DIR", WORKFLOW);
         }

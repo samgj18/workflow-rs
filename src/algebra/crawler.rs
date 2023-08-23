@@ -159,7 +159,16 @@ impl Crawler {
 mod tests {
     use super::*;
 
-    pub const WORKDIR: &str = "./specs";
+    pub const WORKDIR: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "./specs"
+        }
+    };
     #[test]
     fn test_non_visited_when_history_doesnt_exist() {
         let path = Path::new(&WORKDIR).join("empty");

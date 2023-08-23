@@ -44,7 +44,7 @@ impl<'a> From<&'a str> for FileExtension {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct File {
     path: PathBuf,
 }
@@ -56,12 +56,14 @@ impl File {
         }
     }
 
-    pub fn remove_all(&self) -> Result<Unit, Error> {
-        std::fs::remove_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
+    pub fn remove_all(&self) -> Result<Self, Error> {
+        std::fs::remove_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))?;
+        Ok(self.clone())
     }
 
-    pub fn create_dir_all(&self) -> Result<Unit, Error> {
-        std::fs::create_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
+    pub fn create_dir_all(&self) -> Result<Self, Error> {
+        std::fs::create_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))?;
+        Ok(self.clone())
     }
 }
 

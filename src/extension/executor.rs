@@ -85,6 +85,7 @@ impl Executor<Workflow, Output> for Command {
             None => match self {
                 Command::List(_) => {
                     let location: &str = &WORKDIR;
+                    let location = Path::new(location);
                     let files =
                         std::fs::read_dir(location).map_err(|e| Error::Io(Some(e.into())))?;
 
@@ -105,10 +106,8 @@ impl Executor<Workflow, Output> for Command {
                             let name = path.split('/').last();
                             // Convert option to HashSet
                             let name = name.map_or_else(Vec::new, |name| vec![name]);
-                            let location: &str = &WORKDIR;
-                            let workdir = Path::new(location);
 
-                            let workflows: Vec<String> = prepare_workflows(&name, workdir)?
+                            let workflows: Vec<String> = prepare_workflows(&name, location)?
                                 .into_iter()
                                 .map(|workflow| {
                                     let description = workflow
@@ -171,8 +170,9 @@ impl Executor<Workflow, Output> for Command {
                             let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
-                                let path = File::new(&path);
-                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                                File::new(&path)
+                                    .remove_all()
+                                    .and_then(|file| file.create_dir_all())?;
                             }
 
                             let text = format!(
@@ -195,8 +195,9 @@ impl Executor<Workflow, Output> for Command {
                             let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
-                                let path = File::new(&path);
-                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                                File::new(&path)
+                                    .remove_all()
+                                    .and_then(|file| file.create_dir_all())?;
                             }
 
                             Crawler::crawl(Path::new(location), &WRITER)
@@ -236,13 +237,7 @@ mod tests {
         {
             ".\\specs"
         }
-
-        #[cfg(target_os = "linux")]
-        {
-            "./specs"
-        }
-
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             "./specs"
         }
@@ -270,13 +265,7 @@ mod tests {
         {
             std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
         }
-
-        #[cfg(target_os = "linux")]
-        {
-            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
-        }
-
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             std::env::set_var("WORKFLOW_DIR", WORKFLOW);
         }
@@ -297,11 +286,7 @@ mod tests {
             {
                 ".\\specs\\echo.yml"
             }
-            #[cfg(target_os = "linux")]
-            {
-                "./specs/echo.yml"
-            }
-            #[cfg(target_os = "macos")]
+            #[cfg(not(target_os = "windows"))]
             {
                 "./specs/echo.yml"
             }
@@ -327,13 +312,7 @@ mod tests {
             {
                 "Scan created at .\\specs"
             }
-
-            #[cfg(target_os = "linux")]
-            {
-                "Scan created at ./specs"
-            }
-
-            #[cfg(target_os = "macos")]
+            #[cfg(not(target_os = "windows"))]
             {
                 "Scan created at ./specs"
             }
@@ -366,13 +345,7 @@ mod tests {
             {
                 "Scan cleaned at .\\specs"
             }
-
-            #[cfg(target_os = "linux")]
-            {
-                "Scan cleaned at ./specs"
-            }
-
-            #[cfg(target_os = "macos")]
+            #[cfg(not(target_os = "windows"))]
             {
                 "Scan cleaned at ./specs"
             }

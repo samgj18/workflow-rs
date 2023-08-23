@@ -17,11 +17,7 @@ pub mod prelude {
 
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
         let home_env_var = {
-            #[cfg(target_os = "macos")]
-            {
-                env!("HOME")
-            }
-            #[cfg(target_os = "linux")]
+            #[cfg(not(target_os = "windows"))]
             {
                 env!("HOME")
             }
