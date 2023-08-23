@@ -15,7 +15,22 @@ pub mod prelude {
     pub use crate::extension::prelude::*;
 
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
-        let path = format!("{}/.config/workflows", env!("HOME"));
+        let home_env_var = {
+            #[cfg(target_os = "macos")]
+            {
+                env!("HOME")
+            }
+            #[cfg(target_os = "linux")]
+            {
+                env!("HOME")
+            }
+            #[cfg(target_os = "windows")]
+            {
+                env!("USERPROFILE")
+            }
+        };
+
+        let path = format!("{}/.config/workflows", home_env_var);
         let configuration: Result<Result<Configuration, Error>, Error> =
             std::fs::read_to_string(path)
                 .map(|s| Configuration::from_str(&s))
@@ -30,7 +45,7 @@ pub mod prelude {
             Ok(home) => home,
             Err(_) => match configuration {
                 Ok(Ok(path)) => path.workflow_dir().to_owned(),
-                _ => format!("{}/.workflows", env!("HOME")),
+                _ => format!("{}/.workflows", home_env_var),
             },
         }
     });
