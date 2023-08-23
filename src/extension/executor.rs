@@ -182,7 +182,8 @@ impl Executor<Workflow, Output> for Command {
 
                             Ok(Output::new(
                                 "clean",
-                                &format!("Scan cleaned at {}", location),))
+                                &format!("Scan cleaned at {}", location),
+                            ))
                         }
                         Indexer::Create(_) => {
                             let location: &str = &WORKDIR;

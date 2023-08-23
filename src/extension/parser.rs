@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use inquire::{Text, required};
+use inquire::{required, Text};
 
 use crate::domain::{
     args::{Argument, ArgumentDefault},
