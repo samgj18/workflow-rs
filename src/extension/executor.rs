@@ -182,8 +182,7 @@ impl Executor<Workflow, Output> for Command {
 
                             Ok(Output::new(
                                 "clean",
-                                &format!("Scan cleaned at {}", location),
-                            ))
+                                &format!("Scan cleaned at {}", location),))
                         }
                         Indexer::Create(_) => {
                             let location: &str = &WORKDIR;
@@ -343,17 +342,17 @@ mod tests {
         let path = {
             #[cfg(target_os = "windows")]
             {
-                "Scan created at .\\specs"
+                "Scan cleaned at .\\specs"
             }
 
             #[cfg(target_os = "linux")]
             {
-                "Scan created at ./specs"
+                "Scan cleaned at ./specs"
             }
 
             #[cfg(target_os = "macos")]
             {
-                "Scan created at ./specs"
+                "Scan cleaned at ./specs"
             }
         };
 
