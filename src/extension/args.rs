@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use crate::prelude::*;
 
 pub trait Prepare {
@@ -22,10 +20,8 @@ impl Prepare for Command {
         match self {
             Command::Run(command) => {
                 let names: &[&str] = &[command.name()];
-                let location: &str = &WORKDIR;
-                let location = Path::new(location);
 
-                prepare_workflows(names, location)?
+                prepare_workflows(names, &WORKDIR)?
                     .pop()
                     .ok_or(Error::InvalidName(None))
                     .map(Some)
@@ -41,6 +37,7 @@ impl Prepare for Command {
 mod tests {
     use super::*;
     use crate::prelude::Run;
+    use std::path::Path;
 
     pub const WORKFLOW: &str = {
         #[cfg(target_os = "windows")]
