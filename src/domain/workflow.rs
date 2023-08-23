@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::collections::HashMap;
 
 use super::{args::Argument, prelude::Error};
 use handlebars::Handlebars;
@@ -139,26 +139,16 @@ impl Workflow {
             .collect::<Vec<_>>()
     }
     pub(self) fn suggestion(&self, input: &str) -> Vec<String> {
-        // Find the values with the minimum levenshtein distance
-        let mut min_distance = usize::MAX;
-        let mut min_values = Vec::new();
+        let input = input.to_lowercase();
 
-        for value in self.values() {
-            let distance = Workflow::levenshtein(input, value.as_str());
-
-            match distance.cmp(&min_distance) {
-                Ordering::Less => {
-                    min_distance = distance;
-                    min_values = vec![value];
-                }
-                Ordering::Equal => {
-                    min_values.push(value);
-                }
-                Ordering::Greater => {} // No action needed in this case
-            }
-        }
-
-        min_values
+        self.values()
+            .iter()
+            .filter(|value| {
+                value.to_lowercase().contains(&input) || Workflow::levenshtein(&input, value) <= 2
+            })
+            .take(5)
+            .map(|value| value.to_owned())
+            .collect()
     }
 
     pub(self) fn completion(&self, input: &str) -> Option<String> {
@@ -168,8 +158,9 @@ impl Workflow {
 
         for value in self.values() {
             let distance = Workflow::levenshtein(input, value.as_str());
+            let contains_word = value.to_lowercase().contains(input);
 
-            if distance < min_distance {
+            if distance < min_distance || contains_word {
                 min_distance = distance;
                 min_value = Some(value);
             }
@@ -293,8 +284,9 @@ mod tests {
 
         let suggestions = workflow.suggestion("test");
 
-        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions.len(), 2);
         assert_eq!(suggestions[0], "test");
+        assert_eq!(suggestions[1], "test2");
     }
 
     #[test]

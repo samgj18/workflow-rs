@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::prelude::*;
 
 pub trait Prepare {
@@ -21,6 +23,7 @@ impl Prepare for Command {
             Command::Run(command) => {
                 let names: &[&str] = &[command.name()];
                 let location: &str = &WORKDIR;
+                let location = Path::new(location);
 
                 prepare_workflows(names, location)?
                     .pop()
@@ -39,13 +42,32 @@ mod tests {
     use super::*;
     use crate::prelude::Run;
 
-    pub const WORKDIR: &str = "./specs";
-    // Publish workdir as a env variable
+    pub const WORKFLOW: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "./specs"
+        }
+    };
+
+    fn set_env_var() {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+    }
 
     #[test]
     fn test_load_workflow_file() {
         let value = "echo.yml";
-        let result = load_workflow_file(WORKDIR, value);
+        let result = load_workflow_file(Path::new(WORKFLOW), Path::new(value));
         assert!(result.is_ok());
     }
 
@@ -61,7 +83,8 @@ mod tests {
 
     #[test]
     fn test_prepare() {
-        std::env::set_var("WORKFLOW_DIR", WORKDIR);
+        set_env_var();
+
         let command = Command::Run(Run::new("echo.yml"));
         let result = command.prepare();
 

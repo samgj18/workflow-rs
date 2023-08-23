@@ -1,11 +1,20 @@
 [package]
+authors = ["Samuel Gomez <samgj_18@hotmail.com>"]
 name = "workflow"
 description = "A simple workflow engine for the command line"
+keywords = ["workflow", "cli", "command-line", "rust"]
 version = "0.0.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
 readme = "README.md"
+exclude = ["/.github"]
+repository = "https://github.com/samgj18/workflow-rs"
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
 
 [lib]
 path = "src/lib.rs"

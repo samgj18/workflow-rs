@@ -1,6 +1,9 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
-use crate::prelude::{Error, Unit};
+use crate::prelude::Error;
 
 /// File extension enum for yaml and yml
 #[derive(Debug, PartialEq)]
@@ -41,32 +44,26 @@ impl<'a> From<&'a str> for FileExtension {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct File {
-    path: String,
+    path: PathBuf,
 }
 
 impl File {
-    pub fn new(path: &str) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_string(),
+            path: path.to_path_buf(),
         }
     }
 
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn remove_all(&self) -> Result<Self, Error> {
+        std::fs::remove_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))?;
+        Ok(self.clone())
     }
 
-    pub fn exists(&self) -> bool {
-        Path::new(&self.path).exists()
-    }
-
-    pub fn remove_all(&self) -> Result<Unit, Error> {
-        std::fs::remove_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
-    }
-
-    pub fn create_dir_all(&self) -> Result<Unit, Error> {
-        std::fs::create_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))
+    pub fn create_dir_all(&self) -> Result<Self, Error> {
+        std::fs::create_dir_all(&self.path).map_err(|e| Error::Io(Some(e.into())))?;
+        Ok(self.clone())
     }
 }
 

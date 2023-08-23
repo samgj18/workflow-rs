@@ -1,9 +1,11 @@
+use std::path::Path;
+
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, SetSize},
 };
-use inquire::{Select, Text};
+use inquire::{required, Select, Text};
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
@@ -60,10 +62,15 @@ impl Executor<Workflow, Output> for Command {
                                 Clear(ClearType::All),
                                 Print(text),
                                 Print("\n"),
-                                Print(command.clone()),
                                 Print("\n"),
                             )
                             .map_err(|e| Error::Io(Some(e.into())))?;
+
+                            std::process::Command::new("sh")
+                                .arg("-c")
+                                .arg(&command)
+                                .spawn()
+                                .map_err(|e| Error::Io(Some(e.into())))?;
 
                             execute!(std::io::stdout(), SetSize(cols, rows),)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
@@ -78,6 +85,7 @@ impl Executor<Workflow, Output> for Command {
             None => match self {
                 Command::List(_) => {
                     let location: &str = &WORKDIR;
+                    let location = Path::new(location);
                     let files =
                         std::fs::read_dir(location).map_err(|e| Error::Io(Some(e.into())))?;
 
@@ -92,14 +100,27 @@ impl Executor<Workflow, Output> for Command {
                         })
                         .try_for_each::<_, Result<Unit, Error>>(|file| {
                             let file = file.map_err(|e| Error::Io(Some(e.into())))?;
-                            let path = file.path().display().to_string();
+                            let path = file
+                                .path()
+                                .into_os_string()
+                                .into_string()
+                                .map_err(|_| Error::Io(None))?;
 
                             // Read the file and gather descriptions
-                            let name = path.split('/').last();
-                            // Conver option to HashSet
+                            let name = {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    path.split('\\').last()
+                                }
+                                #[cfg(not(target_os = "windows"))]
+                                {
+                                    path.split('/').last()
+                                }
+                            };
+                            // Convert option to HashSet
                             let name = name.map_or_else(Vec::new, |name| vec![name]);
 
-                            let workflows: Vec<String> = prepare_workflows(&name, &WORKDIR)?
+                            let workflows: Vec<String> = prepare_workflows(&name, location)?
                                 .into_iter()
                                 .map(|workflow| {
                                     let description = workflow
@@ -144,6 +165,7 @@ impl Executor<Workflow, Output> for Command {
                 ))),
                 Command::Search(command) => {
                     let workflow = Text::new("Search for a workflow")
+                        .with_validator(required!("This field is required"))
                         .with_autocomplete(command.clone())
                         .prompt()
                         .map_err(|e| Error::ReadError(Some(e.into())))?;
@@ -158,10 +180,12 @@ impl Executor<Workflow, Output> for Command {
                     match command {
                         Indexer::Clean(_) => {
                             let location: &str = &WORKDIR;
-                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+                            let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
-                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                                File::new(&path)
+                                    .remove_all()
+                                    .and_then(|file| file.create_dir_all())?;
                             }
 
                             let text = format!(
@@ -181,13 +205,15 @@ impl Executor<Workflow, Output> for Command {
                         }
                         Indexer::Create(_) => {
                             let location: &str = &WORKDIR;
-                            let path = File::new(&format!("{}/{}", location, INDEX_DIR));
+                            let path = Path::new(location).join(INDEX_DIR);
 
                             if path.exists() {
-                                path.remove_all().and_then(|_| path.create_dir_all())?;
+                                File::new(&path)
+                                    .remove_all()
+                                    .and_then(|file| file.create_dir_all())?;
                             }
 
-                            Crawler::crawl(location, &WRITER)
+                            Crawler::crawl(Path::new(location), &WRITER)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
 
                             let text = format!(
@@ -214,10 +240,21 @@ impl Executor<Workflow, Output> for Command {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::prelude::List;
 
-    pub const WORKFLOW: &str = "./specs";
+    pub const WORKFLOW: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "./specs"
+        }
+    };
 
     // Depends on https://github.com/mikaelmello/inquire/issues/70
     // #[test]
@@ -236,24 +273,46 @@ mod tests {
     //     assert!(result.is_ok());
     // }
 
+    fn set_env_var() {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+    }
+
     #[test]
     fn test_execute_list() {
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
+
         let command = Command::List(List::default());
 
-        let result = command.execute(None);
-        let message = result.as_ref().unwrap().message();
-        let r#type = result.as_ref().unwrap().r#type();
-        let is_ok = result.is_ok();
+        let result = command.execute(None).unwrap();
+        let message = result.message();
+        let r#type = result.r#type();
 
-        assert!(is_ok);
-        assert_eq!(message, "./specs/echo.yml");
+        let msg_res = {
+            #[cfg(target_os = "windows")]
+            {
+                ".\\specs\\echo.yml"
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                "./specs/echo.yml"
+            }
+        };
+
+        assert_eq!(message, msg_res);
         assert_eq!(r#type, "list");
     }
 
     #[test]
     fn test_execute_create() {
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
+
         let command = Command::Index(Indexer::new("create"));
 
         let result = command.execute(None);
@@ -261,8 +320,19 @@ mod tests {
         let r#type = result.as_ref().unwrap().r#type();
         let is_ok = result.is_ok();
 
+        let path = {
+            #[cfg(target_os = "windows")]
+            {
+                "Scan created at .\\specs"
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                "Scan created at ./specs"
+            }
+        };
+
         assert!(is_ok);
-        assert_eq!(message, "Scan created at ./specs");
+        assert_eq!(message, path);
         assert_eq!(r#type, "scan");
     }
 
@@ -272,7 +342,7 @@ mod tests {
         // environment variable.
         std::thread::sleep(std::time::Duration::from_secs(4));
 
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
 
         let command = Command::Index(Indexer::new("clean"));
         let result = command.execute(None);
@@ -281,10 +351,21 @@ mod tests {
         let is_ok = result.is_ok();
 
         // This is part of the same hack to restore previous state
-        Crawler::crawl(WORKFLOW, &WRITER).unwrap();
+        Crawler::crawl(Path::new(WORKFLOW), &WRITER).unwrap();
+
+        let path = {
+            #[cfg(target_os = "windows")]
+            {
+                "Scan cleaned at .\\specs"
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                "Scan cleaned at ./specs"
+            }
+        };
 
         assert!(is_ok);
-        assert_eq!(message, "Scan cleaned at ./specs");
+        assert_eq!(message, path);
         assert_eq!(r#type, "clean");
     }
 }

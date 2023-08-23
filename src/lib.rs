@@ -3,6 +3,7 @@ pub mod domain;
 pub mod extension;
 
 pub mod prelude {
+    use std::path::Path;
     use std::str::FromStr;
 
     use once_cell::sync::Lazy;
@@ -15,7 +16,18 @@ pub mod prelude {
     pub use crate::extension::prelude::*;
 
     pub static WORKDIR: Lazy<String> = Lazy::new(|| {
-        let path = format!("{}/.config/workflows", env!("HOME"));
+        let home_env_var = {
+            #[cfg(not(target_os = "windows"))]
+            {
+                env!("HOME")
+            }
+            #[cfg(target_os = "windows")]
+            {
+                env!("USERPROFILE")
+            }
+        };
+
+        let path = Path::new(&home_env_var).join(".config").join("workflows");
         let configuration: Result<Result<Configuration, Error>, Error> =
             std::fs::read_to_string(path)
                 .map(|s| Configuration::from_str(&s))
@@ -30,7 +42,11 @@ pub mod prelude {
             Ok(home) => home,
             Err(_) => match configuration {
                 Ok(Ok(path)) => path.workflow_dir().to_owned(),
-                _ => format!("{}/.workflows", env!("HOME")),
+                _ => Path::new(home_env_var)
+                    .join(".workflows")
+                    .to_str()
+                    .expect("Failed to convert path to string")
+                    .to_owned(),
             },
         }
     });
