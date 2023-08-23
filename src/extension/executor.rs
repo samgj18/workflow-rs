@@ -100,10 +100,23 @@ impl Executor<Workflow, Output> for Command {
                         })
                         .try_for_each::<_, Result<Unit, Error>>(|file| {
                             let file = file.map_err(|e| Error::Io(Some(e.into())))?;
-                            let path = file.path().display().to_string();
+                            let path = file
+                                .path()
+                                .into_os_string()
+                                .into_string()
+                                .map_err(|_| Error::Io(None))?;
 
                             // Read the file and gather descriptions
-                            let name = path.split('/').last();
+                            let name = {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    path.split('\\').last()
+                                }
+                                #[cfg(not(target_os = "windows"))]
+                                {
+                                    path.split('/').last()
+                                }
+                            };
                             // Convert option to HashSet
                             let name = name.map_or_else(Vec::new, |name| vec![name]);
 

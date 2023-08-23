@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::prelude::{Error, Unit};
+use crate::prelude::Error;
 
 /// File extension enum for yaml and yml
 #[derive(Debug, PartialEq)]
