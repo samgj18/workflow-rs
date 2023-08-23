@@ -241,7 +241,7 @@ mod tests {
     //
     //     assert!(result.is_ok());
     // }
-    
+
     fn set_env_var() {
         #[cfg(target_os = "windows")]
         {
@@ -270,8 +270,23 @@ mod tests {
         let r#type = result.as_ref().unwrap().r#type();
         let is_ok = result.is_ok();
 
+        let msg_res = {
+            #[cfg(target_os = "windows")]
+            {
+                ".\\specs\\echo.yml"
+            }
+            #[cfg(target_os = "linux")]
+            {
+                "./specs/echo.yml"
+            }
+            #[cfg(target_os = "macos")]
+            {
+                "./specs/echo.yml"
+            }
+        };
+
         assert!(is_ok);
-        assert_eq!(message, "./specs/echo.yml");
+        assert_eq!(message, msg_res);
         assert_eq!(r#type, "list");
     }
 
@@ -286,8 +301,25 @@ mod tests {
         let r#type = result.as_ref().unwrap().r#type();
         let is_ok = result.is_ok();
 
+        let path = {
+            #[cfg(target_os = "windows")]
+            {
+                "Scan created at .\\specs"
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                "Scan created at ./specs"
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                "Scan created at ./specs"
+            }
+        };
+
         assert!(is_ok);
-        assert_eq!(message, "Scan created at ./specs");
+        assert_eq!(message, path);
         assert_eq!(r#type, "scan");
     }
 
@@ -308,8 +340,25 @@ mod tests {
         // This is part of the same hack to restore previous state
         Crawler::crawl(WORKFLOW, &WRITER).unwrap();
 
+        let path = {
+            #[cfg(target_os = "windows")]
+            {
+                "Scan created at .\\specs"
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                "Scan created at ./specs"
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                "Scan created at ./specs"
+            }
+        };
+
         assert!(is_ok);
-        assert_eq!(message, "Scan cleaned at ./specs");
+        assert_eq!(message, path);
         assert_eq!(r#type, "clean");
     }
 }
