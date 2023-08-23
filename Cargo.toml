@@ -29,3 +29,6 @@ thiserror = "1.0.47"
 
 [dev-dependencies]
 fake = "2.8.0"
+
+[package]
+publish = false

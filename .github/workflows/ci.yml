@@ -16,14 +16,25 @@ env:
 
 jobs:
   build:
+    strategy:
+      fail-fast: true
+      matrix:
+        platform:
+          - ubuntu
+          - macos
+          - windows
     name: Build and Test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
+    - name: Check
+      run: cargo check --verbose
+    - name: Install
+      run: cargo install --debug --path .
     - name: Run tests
       run: cargo test --verbose
+    - name: Run clippy
+      run: cargo clippy --verbose -- -D warnings
   tagger:
     name: Tag
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main')
@@ -39,5 +50,5 @@ jobs:
         if: always() && needs.build.result == 'success'
         uses: rymndhng/release-on-push-action@master
         with:
-          bump_version_scheme: patch
+          bump_version_scheme: norelease #patch, minor, major, norelease
           tag_prefix: v
