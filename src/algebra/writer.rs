@@ -163,148 +163,137 @@ impl Writer {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::path::PathBuf;
-//
-//     use crate::internal::prelude::{Index, Reader};
-//     use crate::domain::prelude::{Field, FieldTypes, SearchTerm};
-//
-//     use fake::faker::lorem::en::*;
-//     use fake::{Fake, Faker};
-//     use serde::{Deserialize, Serialize};
-//     use strum::Display;
-//     use tantivy::{doc, schema::*};
-//
-//     use super::Writer;
-//
-//     #[derive(Serialize, Deserialize, Debug)]
-//     pub struct TestId(pub String);
-//
-//     #[derive(Serialize, Deserialize, Debug, Display)]
-//     pub enum TestField {
-//         Id,
-//         Body,
-//     }
-//
-//     impl Field for TestField {
-//         fn r#type(&self) -> FieldTypes {
-//             match self {
-//                 TestField::Id => FieldTypes::Text,
-//                 TestField::Body => FieldTypes::Text,
-//             }
-//         }
-//     }
-//
-//     fn string() -> String {
-//         Faker.fake::<String>()
-//     }
-//
-//     fn lorem() -> String {
-//         Words(10..20).fake::<Vec<String>>().join(" ")
-//     }
-//
-//     fn index() -> Index {
-//         let mut schema_builder = Schema::builder();
-//         schema_builder.add_text_field("id", TEXT | STORED);
-//         schema_builder.add_json_field("body", TEXT | STORED);
-//
-//         let schema = schema_builder.build();
-//
-//         let path_str = format!("./local-data/test_index_{}", string());
-//         let path = PathBuf::from(path_str);
-//
-//         Index::new_at_dir_or_ram::<PathBuf>(&schema, Some(path)).unwrap()
-//     }
-//
-//     fn writer(index: Index) -> Writer {
-//         Writer::new(index).unwrap()
-//     }
-//
-//     fn reader(index: Index) -> Reader {
-//         Reader::new(index).unwrap()
-//     }
-//
-//     fn schema(index: Index) -> Schema {
-//         index.inner().schema()
-//     }
-//
-//     #[test]
-//     fn successfully_create_index() {
-//         let schema = index().inner().schema();
-//         let fields = schema.fields().collect::<Vec<_>>();
-//
-//         assert_eq!(schema.fields().count(), 4);
-//         assert_eq!(fields.first().unwrap().0.field_id(), 0);
-//         assert_eq!(fields.first().unwrap().1.name(), "id");
-//         assert!(fields.first().unwrap().1.field_type().is_indexed());
-//     }
-//
-//     #[test]
-//     fn successfully_add_document() {
-//         let index = index();
-//         let mut writer = writer(index.clone());
-//         let schema = schema(index.clone());
-//         let id = schema.get_field("id").unwrap();
-//         let body = schema.get_field("body").unwrap();
-//         let lorem = lorem();
-//
-//         let doc = doc!(
-//             id => "The Old Man and the Sea",
-//             body => serde_json::json!({ "body": lorem }),
-//         );
-//
-//         writer.add_document(doc).unwrap();
-//
-//         // wait for the index to be written
-//         std::thread::sleep(std::time::Duration::from_millis(2000));
-//
-//         let res = reader(index)
-//             .get(
-//                 &SearchTerm::new("sea whale"),
-//                 &[TestField::Id, TestField::Body],
-//                 None,
-//             )
-//             .unwrap();
-//
-//         let opstamp = res.first().unwrap().0;
-//         let value = &res.first().unwrap().1;
-//
-//         let expected = serde_json::json!({
-//             "body": [{
-//                 "body": lorem
-//             }],
-//             "id": ["The Old Man and the Sea"],
-//         });
-//
-//         assert_eq!(opstamp, 0.28768212_f32);
-//         assert_eq!(value, &expected);
-//     }
-//
-//     #[test]
-//     fn successfully_add_many_documents() {
-//         let index = index();
-//         let mut writer = writer(index.clone());
-//         let reader = reader(index.clone());
-//         let schema = schema(index);
-//         let mut document = Document::default();
-//         document.add_text(schema.get_field("id").unwrap(), "1");
-//         document.add_text(schema.get_field("id").unwrap(), "2");
-//
-//         writer.add_many_documents(vec![document]).unwrap();
-//
-//         // wait for the index to be written
-//         std::thread::sleep(std::time::Duration::from_millis(2000));
-//
-//         let id = schema.get_field("id").unwrap();
-//
-//         let all = reader.get_all_raw().unwrap();
-//
-//         let ids = all.first().unwrap().get_all(id).collect::<Vec<_>>();
-//
-//         assert_eq!(all.len(), 1);
-//         assert_eq!(ids.len(), 2);
-//         assert_eq!(ids[0].as_text().unwrap(), "1");
-//         assert_eq!(ids[1].as_text().unwrap(), "2");
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::algebra::prelude::{Index, Reader};
+    use crate::domain::prelude::SearchTerm;
+
+    use fake::faker::lorem::en::*;
+    use fake::{Fake, Faker};
+    use serde::{Deserialize, Serialize};
+    use tantivy::{doc, schema::*};
+
+    use super::Writer;
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct TestId(pub String);
+
+    fn string() -> String {
+        Faker.fake::<String>()
+    }
+
+    fn lorem() -> String {
+        Words(10..20).fake::<Vec<String>>().join(" ")
+    }
+
+    fn index() -> Index {
+        let path = {
+            #[cfg(target_os = "windows")]
+            {
+                format!(".\\specs\\data_{}", string())
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                format!("./specs/data_{}", string())
+            }
+        };
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("id", TEXT | STORED);
+        schema_builder.add_json_field("body", TEXT | STORED);
+
+        let schema = schema_builder.build();
+        let path = PathBuf::from(path);
+
+        Index::new_at_dir_or_ram::<PathBuf>(&schema, Some(path)).unwrap()
+    }
+
+    fn writer(index: Index) -> Writer {
+        Writer::new(&index).unwrap()
+    }
+
+    fn reader(index: Index) -> Reader {
+        Reader::new(&index).unwrap()
+    }
+
+    fn schema(index: Index) -> Schema {
+        index.inner().schema()
+    }
+
+    #[test]
+    fn test_create_index() {
+        let schema = index().inner().schema();
+        let fields = schema.fields().collect::<Vec<_>>();
+
+        assert_eq!(schema.fields().count(), 2);
+        assert_eq!(fields.first().unwrap().0.field_id(), 0);
+        assert_eq!(fields.first().unwrap().1.name(), "id");
+        assert!(fields.first().unwrap().1.field_type().is_indexed());
+    }
+
+    #[test]
+    fn test_add_document() {
+        let index = index();
+        let mut writer = writer(index.clone());
+        let schema = schema(index.clone());
+        let id = schema.get_field("id").unwrap();
+        let body = schema.get_field("body").unwrap();
+        let lorem = lorem();
+
+        let doc = doc!(
+            id => "The Old Man and the Sea",
+            body => serde_json::json!({ "body": lorem }),
+        );
+
+        writer.add_document(doc).unwrap();
+
+        // wait for the index to be written
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
+        let res = reader(index)
+            .get(&SearchTerm::from("sea whale"), &["id", "body"], None)
+            .unwrap();
+
+        let opstamp = res.first().unwrap().0;
+        let value = &res.first().unwrap().1;
+
+        let expected = serde_json::json!({
+            "body": [{
+                "body": lorem
+            }],
+            "id": ["The Old Man and the Sea"],
+        });
+
+        assert_eq!(opstamp, 0.28768212_f32);
+        assert_eq!(value, &expected);
+    }
+
+    #[test]
+    fn test_add_many_documents() {
+        let index = index();
+        let mut writer = writer(index.clone());
+        let reader = reader(index.clone());
+        let schema = schema(index);
+        let mut document = Document::default();
+        document.add_text(schema.get_field("id").unwrap(), "1");
+        document.add_text(schema.get_field("id").unwrap(), "2");
+
+        writer.add_many_documents(vec![document]).unwrap();
+
+        // wait for the index to be written
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
+        let id = schema.get_field("id").unwrap();
+
+        let all = reader.get_all_raw().unwrap();
+
+        let ids = all.first().unwrap().get_all(id).collect::<Vec<_>>();
+
+        assert_eq!(all.len(), 1);
+        assert_eq!(ids.len(), 2);
+        assert_eq!(ids[0].as_text().unwrap(), "1");
+        assert_eq!(ids[1].as_text().unwrap(), "2");
+    }
+}

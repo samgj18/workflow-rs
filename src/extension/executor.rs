@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
@@ -84,10 +82,8 @@ impl Executor<Workflow, Output> for Command {
             }
             None => match self {
                 Command::List(_) => {
-                    let location: &str = &WORKDIR;
-                    let location = Path::new(location);
                     let files =
-                        std::fs::read_dir(location).map_err(|e| Error::Io(Some(e.into())))?;
+                        std::fs::read_dir(&*WORKDIR).map_err(|e| Error::Io(Some(e.into())))?;
 
                     let mut paths = vec![];
 
@@ -120,7 +116,7 @@ impl Executor<Workflow, Output> for Command {
                             // Convert option to HashSet
                             let name = name.map_or_else(Vec::new, |name| vec![name]);
 
-                            let workflows: Vec<String> = prepare_workflows(&name, location)?
+                            let workflows: Vec<String> = prepare_workflows(&name, &WORKDIR)?
                                 .into_iter()
                                 .map(|workflow| {
                                     let description = workflow
@@ -179,8 +175,7 @@ impl Executor<Workflow, Output> for Command {
                 Command::Index(command) => {
                     match command {
                         Indexer::Clean(_) => {
-                            let location: &str = &WORKDIR;
-                            let path = Path::new(location).join(INDEX_DIR);
+                            let path = WORKDIR.join(INDEX_DIR);
 
                             if path.exists() {
                                 File::new(&path)
@@ -192,7 +187,7 @@ impl Executor<Workflow, Output> for Command {
                                 "{}{}{}{}",
                                 SetForegroundColor(Color::Green), // Set the text color to red
                                 "Scan cleaned at ",
-                                location,
+                                &WORKDIR.as_path().display(),
                                 ResetColor,
                             );
 
@@ -200,12 +195,11 @@ impl Executor<Workflow, Output> for Command {
 
                             Ok(Output::new(
                                 "clean",
-                                &format!("Scan cleaned at {}", location),
+                                &format!("Scan cleaned at {}", WORKDIR.as_path().display()),
                             ))
                         }
                         Indexer::Create(_) => {
-                            let location: &str = &WORKDIR;
-                            let path = Path::new(location).join(INDEX_DIR);
+                            let path = WORKDIR.join(INDEX_DIR);
 
                             if path.exists() {
                                 File::new(&path)
@@ -213,14 +207,14 @@ impl Executor<Workflow, Output> for Command {
                                     .and_then(|file| file.create_dir_all())?;
                             }
 
-                            Crawler::crawl(Path::new(location), &WRITER)
+                            Crawler::crawl(&WORKDIR, &WRITER)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
 
                             let text = format!(
                                 "{}{}{}{}",
                                 SetForegroundColor(Color::Green), // Set the text color to red
                                 "Scan created at ",
-                                location,
+                                &WORKDIR.as_path().display(),
                                 ResetColor,
                             );
 
@@ -228,7 +222,7 @@ impl Executor<Workflow, Output> for Command {
 
                             Ok(Output::new(
                                 "scan",
-                                &format!("Scan created at {}", location),
+                                &format!("Scan created at {}", WORKDIR.as_path().display()),
                             ))
                         }
                     }

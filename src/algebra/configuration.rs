@@ -24,6 +24,11 @@ impl FromStr for Configuration {
             }
 
             let configuration = line.trim().split('=').collect::<Vec<&str>>();
+            // remove spaces
+            let configuration = configuration
+                .iter()
+                .map(|value| value.trim())
+                .collect::<Vec<&str>>();
             if configuration.len() != 2 {
                 return;
             }
@@ -44,5 +49,40 @@ impl FromStr for Configuration {
             })?;
 
         Ok(Self { workflow_dir })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ideal_from_configuration_from_str() {
+        let configuration = r#"
+            workflow_dir=/home/username/workflows
+        "#;
+
+        let configuration = Configuration::from_str(configuration).unwrap();
+        assert_eq!(configuration.workflow_dir(), "/home/username/workflows");
+    }
+
+    #[test]
+    fn test_from_configuration_from_str_with_invalid_configuration() {
+        let configuration = r#"
+            workflow_dir==/home/username/workflows
+        "#;
+
+        let configuration = Configuration::from_str(configuration);
+        assert!(configuration.is_err());
+    }
+
+    #[test]
+    fn test_from_configuration_with_spaces() {
+        let configuration = r#"
+            workflow_dir = /home/username/workflows
+        "#;
+
+        let configuration = Configuration::from_str(configuration).unwrap();
+        assert_eq!(configuration.workflow_dir(), "/home/username/workflows");
     }
 }
