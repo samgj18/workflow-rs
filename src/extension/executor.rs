@@ -252,9 +252,10 @@ mod tests {
         let message = result.message();
         let r#type = result.r#type();
 
-        // let msg_res = Path::new("specs").join("echo.yml");
+        let path = Path::new("specs").join("echo.yml");
+        let msg_res = path.to_str().unwrap();
 
-        // assert_eq!(message, msg_res);
+        assert_eq!(message, msg_res);
         assert_eq!(r#type, "list");
     }
 
