@@ -39,13 +39,30 @@ mod tests {
     use super::*;
     use crate::prelude::Run;
 
-    pub const WORKDIR: &str = "./specs";
+    pub const WORKFLOW: &str = "./specs";
     // Publish workdir as a env variable
+
+    fn set_env_var() {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+    }
 
     #[test]
     fn test_load_workflow_file() {
         let value = "echo.yml";
-        let result = load_workflow_file(WORKDIR, value);
+        let result = load_workflow_file(WORKFLOW, value);
         assert!(result.is_ok());
     }
 
@@ -61,7 +78,8 @@ mod tests {
 
     #[test]
     fn test_prepare() {
-        std::env::set_var("WORKFLOW_DIR", WORKDIR);
+        set_env_var();
+
         let command = Command::Run(Run::new("echo.yml"));
         let result = command.prepare();
 

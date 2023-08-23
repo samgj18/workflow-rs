@@ -241,10 +241,28 @@ mod tests {
     //
     //     assert!(result.is_ok());
     // }
+    
+    fn set_env_var() {
+        #[cfg(target_os = "windows")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        }
+    }
 
     #[test]
     fn test_execute_list() {
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
+
         let command = Command::List(List::default());
 
         let result = command.execute(None);
@@ -259,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_execute_create() {
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
+
         let command = Command::Index(Indexer::new("create"));
 
         let result = command.execute(None);
@@ -278,7 +297,7 @@ mod tests {
         // environment variable.
         std::thread::sleep(std::time::Duration::from_secs(4));
 
-        std::env::set_var("WORKFLOW_DIR", WORKFLOW);
+        set_env_var();
 
         let command = Command::Index(Indexer::new("clean"));
         let result = command.execute(None);
