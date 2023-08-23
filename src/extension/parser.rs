@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use inquire::Text;
+use inquire::{Text, required};
 
 use crate::domain::{
     args::{Argument, ArgumentDefault},
@@ -35,6 +35,7 @@ impl Parser<Precedence, String> for Workflow {
             |mut acc, argument| -> Result<HashMap<String, String>, Error> {
                 let value = if !argument.values().is_empty() {
                     Text::new(argument.name().inner())
+                        .with_validator(required!("This field is required"))
                         .with_autocomplete(self.clone())
                         .prompt()
                         .map_err(|e| Error::ReadError(Some(e.into())))?

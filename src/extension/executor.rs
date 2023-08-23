@@ -3,7 +3,7 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, SetSize},
 };
-use inquire::{Select, Text};
+use inquire::{required, Select, Text};
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
@@ -60,10 +60,15 @@ impl Executor<Workflow, Output> for Command {
                                 Clear(ClearType::All),
                                 Print(text),
                                 Print("\n"),
-                                Print(command.clone()),
                                 Print("\n"),
                             )
                             .map_err(|e| Error::Io(Some(e.into())))?;
+
+                            std::process::Command::new("sh")
+                                .arg("-c")
+                                .arg(&command)
+                                .spawn()
+                                .map_err(|e| Error::Io(Some(e.into())))?;
 
                             execute!(std::io::stdout(), SetSize(cols, rows),)
                                 .map_err(|e| Error::Io(Some(e.into())))?;
@@ -144,6 +149,7 @@ impl Executor<Workflow, Output> for Command {
                 ))),
                 Command::Search(command) => {
                     let workflow = Text::new("Search for a workflow")
+                        .with_validator(required!("This field is required"))
                         .with_autocomplete(command.clone())
                         .prompt()
                         .map_err(|e| Error::ReadError(Some(e.into())))?;
