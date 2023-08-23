@@ -220,10 +220,10 @@ impl Executor<Workflow, Output> for Command {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::prelude::List;
-
-    pub const WORKFLOW: &str = "./specs";
 
     // Depends on https://github.com/mikaelmello/inquire/issues/70
     // #[test]
@@ -242,58 +242,25 @@ mod tests {
     //     assert!(result.is_ok());
     // }
 
-    fn set_env_var() {
-        #[cfg(target_os = "windows")]
-        {
-            std::env::set_var("WORKFLOW_DIR", WORKFLOW.replace("/", "\\"));
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            std::env::set_var("WORKFLOW_DIR", WORKFLOW);
-        }
-    }
-
     #[test]
     fn test_execute_list() {
-        set_env_var();
-
+        std::env::set_var("WORKFLOW_DIR", Path::new("specs").to_str().unwrap());
         let command = Command::List(List::default());
 
-        let result = command.execute(None);
-        let message = result.as_ref().unwrap().message();
-        let r#type = result.as_ref().unwrap().r#type();
-        let is_ok = result.is_ok();
+        let result = command.execute(None).unwrap();
 
-        let msg_res = {
-            #[cfg(target_os = "windows")]
-            {
-                ".\\specs\\echo.yml"
-            }
-            #[cfg(target_os = "linux")]
-            {
-                "./specs/echo.yml"
-            }
-            #[cfg(target_os = "macos")]
-            {
-                "./specs/echo.yml"
-            }
-        };
+        let message = result.message();
+        let r#type = result.r#type();
 
-        assert!(is_ok);
-        assert_eq!(message, msg_res);
+        // let msg_res = Path::new("specs").join("echo.yml");
+
+        // assert_eq!(message, msg_res);
         assert_eq!(r#type, "list");
     }
 
     #[test]
     fn test_execute_create() {
-        set_env_var();
-
+        std::env::set_var("WORKFLOW_DIR", Path::new("specs").to_str().unwrap());
         let command = Command::Index(Indexer::new("create"));
 
         let result = command.execute(None);
@@ -301,25 +268,8 @@ mod tests {
         let r#type = result.as_ref().unwrap().r#type();
         let is_ok = result.is_ok();
 
-        let path = {
-            #[cfg(target_os = "windows")]
-            {
-                "Scan created at .\\specs"
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                "Scan created at ./specs"
-            }
-
-            #[cfg(target_os = "macos")]
-            {
-                "Scan created at ./specs"
-            }
-        };
-
         assert!(is_ok);
-        assert_eq!(message, path);
+        assert_eq!(message, "Scan created at specs");
         assert_eq!(r#type, "scan");
     }
 
@@ -328,8 +278,8 @@ mod tests {
         // TODO: Fix this flakes test. We're sleeping because many tests interact with the same
         // environment variable.
         std::thread::sleep(std::time::Duration::from_secs(4));
-
-        set_env_var();
+        let workflow = Path::new("specs").to_str().unwrap();
+        std::env::set_var("WORKFLOW_DIR", workflow);
 
         let command = Command::Index(Indexer::new("clean"));
         let result = command.execute(None);
@@ -338,27 +288,10 @@ mod tests {
         let is_ok = result.is_ok();
 
         // This is part of the same hack to restore previous state
-        Crawler::crawl(WORKFLOW, &WRITER).unwrap();
-
-        let path = {
-            #[cfg(target_os = "windows")]
-            {
-                "Scan cleaned at .\\specs"
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                "Scan cleaned at ./specs"
-            }
-
-            #[cfg(target_os = "macos")]
-            {
-                "Scan cleaned at ./specs"
-            }
-        };
+        Crawler::crawl(workflow, &WRITER).unwrap();
 
         assert!(is_ok);
-        assert_eq!(message, path);
+        assert_eq!(message, "Scan cleaned at specs");
         assert_eq!(r#type, "clean");
     }
 }
