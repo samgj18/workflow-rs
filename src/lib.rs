@@ -49,11 +49,9 @@ pub mod prelude {
 
     // This is fine because a CLI application is a blocking application. Hence, we can use a global
     // variable to store the index, writer, and reader.
-    pub static INDEX: Lazy<Index> = Lazy::new(|| Index::new().expect("Failed to create index"));
-    pub static WRITER: Lazy<Writer> =
-        Lazy::new(|| Writer::new(&INDEX).expect("Failed to create writer"));
-    pub static READER: Lazy<Reader> =
-        Lazy::new(|| Reader::new(&INDEX).expect("Failed to create reader"));
+    pub const INDEX_DIR: &str = "index";
+    pub static STORE: Lazy<WorkStore> =
+        Lazy::new(|| WorkStore::init(&WORKDIR.join(INDEX_DIR)).expect("Failed to create store"));
 
     pub type Unit = ();
 }

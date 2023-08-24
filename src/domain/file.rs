@@ -14,20 +14,17 @@ pub enum FileExtension {
 }
 
 impl FileExtension {
-    pub fn format(name: &str) -> HashSet<String> {
-        let mut values = HashSet::new();
+    pub fn format(name: &str) -> String {
         match FileExtension::from(name) {
-            FileExtension::Yaml | FileExtension::Yml => values.insert(name.to_string()),
-            FileExtension::None => values.insert(format!("{}.yaml", name)),
-        };
-
-        values
+            FileExtension::Yaml | FileExtension::Yml => name.to_string(),
+            FileExtension::None => format!("{}.yaml", name),
+        }
     }
 
     pub fn format_all(names: HashSet<String>) -> HashSet<String> {
         names
             .iter()
-            .flat_map(|name| FileExtension::format(name))
+            .map(|name| FileExtension::format(name))
             .collect::<HashSet<String>>()
     }
 }

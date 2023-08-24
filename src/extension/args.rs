@@ -28,7 +28,6 @@ impl Prepare for Command {
             }
             Command::List(_) => Ok(None),
             Command::Search(_) => Ok(None),
-            Command::Index(_) => Ok(None),
         }
     }
 }
