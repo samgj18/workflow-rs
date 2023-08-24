@@ -1,7 +1,7 @@
 pub mod args;
 pub mod executor;
 pub mod parser;
-pub mod schema;
+pub mod store;
 
 pub mod prelude {
     #[doc(inline)]
@@ -11,7 +11,7 @@ pub mod prelude {
     #[doc(inline)]
     pub use super::parser::*;
     #[doc(inline)]
-    pub use super::schema::*;
+    pub use super::store::*;
 
     use crate::prelude::{Error, FileExtension, Workflow};
     use std::collections::HashSet;
@@ -32,7 +32,7 @@ pub mod prelude {
     pub fn prepare_workflows(names: &[&str], location: &Path) -> Result<Vec<Workflow>, Error> {
         let values = names
             .iter()
-            .flat_map(|name| FileExtension::format(name))
+            .map(|name| FileExtension::format(name))
             .collect::<HashSet<String>>();
 
         values

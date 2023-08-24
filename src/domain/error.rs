@@ -28,6 +28,8 @@ pub enum Error {
     ReadError(#[source] Option<Box<dyn StdError>>),
     #[error("Unable to properly index workflows.")]
     SchemaError(#[source] Option<Box<dyn StdError>>),
+    #[error("The store could not be initialized.")]
+    StoreError(#[source] Option<Box<dyn StdError>>),
     #[error("The workflow command failed.")]
     Io(#[from] Option<Box<dyn StdError>>),
 }

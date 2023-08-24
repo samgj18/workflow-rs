@@ -3,7 +3,7 @@ use workflow::prelude::*;
 
 fn main() -> Result<Unit, Error> {
     // Crawls the current directory for workflow files
-    Crawler::crawl(&WORKDIR, &WRITER)?;
+    Crawler::crawl(&WORKDIR, &STORE)?;
 
     // Parse the command line arguments.
     let command: Command = Command::parse();

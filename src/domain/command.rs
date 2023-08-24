@@ -1,10 +1,7 @@
 use clap::Parser;
 use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
 
-use crate::{
-    domain::workflow::IndexedWorkflow,
-    prelude::{SearchTerm, SearchTermLimit, READER},
-};
+use crate::prelude::{Fuzzy, Store, STORE};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -12,8 +9,6 @@ pub enum Command {
     Run(Run),
     List(List),
     Search(Search),
-    #[clap(subcommand)]
-    Index(Indexer),
 }
 
 #[derive(Parser, Debug, Default)]
@@ -39,32 +34,6 @@ impl Run {
     }
 }
 
-#[derive(Parser, Debug)]
-#[command(about = "Index workflows, e.g. `workflow index <create|clean>`")]
-pub enum Indexer {
-    Clean(Clean),
-    Create(Create),
-}
-
-impl Indexer {
-    #[cfg(test)]
-    pub fn new(command: &str) -> Self {
-        match command {
-            "clean" => Self::Clean(Clean::default()),
-            "create" => Self::Create(Create::default()),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(Parser, Debug, Default)]
-#[command(about = "Create a new index deleting existing one, e.g. `workflow index create`")]
-pub struct Create {}
-
-#[derive(Parser, Debug, Default)]
-#[command(about = "Remove existing index, e.g. `workflow index clean`")]
-pub struct Clean {}
-
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Search for workflows, e.g. `workflow search <query>`")]
 pub struct Search {
@@ -88,33 +57,23 @@ impl Search {
 impl Autocomplete for Search {
     /// Is called whenever the user's text input is modified
     fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, CustomUserError> {
-        let fields = vec!["body"];
-        let input = if input.is_empty() {
-            "*".to_string()
-        } else {
-            format!(
-                "body:{}* OR body.name:{}* OR body.description:{}* OR body.tags:{}* OR body.author:{}* OR body.version:{}*",
-                input, input, input, input, input, input
-            )
-        };
-        let term = SearchTerm::from(
-            input.as_str(), // format!("body.name:{} OR body.description:{}", input, input,).as_str(),
-        );
-        let limit = SearchTermLimit::from(100);
-        let workflow = READER
-            .clone()
-            .get_as::<IndexedWorkflow>(&term, &fields, Some(limit).as_ref())
-            .map_err(|e| CustomUserError::from(e.to_string()));
+        // Very simple without taking into account tags, description, etc.
+        let suggestions = STORE
+            .search()
+            .into_iter()
+            .flat_map(|workflows| {
+                workflows
+                    .into_iter()
+                    .map(|workflow| workflow.name().inner().to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
 
-        let mut suggestions = vec![];
-
-        if let Ok(workflow) = workflow {
-            for (_, workflow) in workflow {
-                suggestions.push(workflow.name().to_string());
-            }
-        }
-
-        Ok(suggestions)
+        Ok(Fuzzy::from(input)
+            .search(&suggestions)
+            .into_iter()
+            .map(|suggestion| suggestion.to_owned())
+            .collect())
     }
 
     /// Is called whenever the user presses tab
