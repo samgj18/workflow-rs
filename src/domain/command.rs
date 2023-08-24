@@ -41,6 +41,14 @@ pub struct Search {
     query: Option<String>,
 }
 
+impl From<&str> for Search {
+    fn from(query: &str) -> Self {
+        Self {
+            query: Some(query.to_string()),
+        }
+    }
+}
+
 impl Search {
     #[cfg(test)]
     pub fn new(query: Option<&str>) -> Self {
@@ -69,8 +77,8 @@ impl Autocomplete for Search {
             })
             .collect::<Vec<_>>();
 
-        Ok(Fuzzy::from(input)
-            .search(&suggestions)
+        Ok(self
+            .search(input, &suggestions)
             .into_iter()
             .map(|suggestion| suggestion.to_owned())
             .collect())

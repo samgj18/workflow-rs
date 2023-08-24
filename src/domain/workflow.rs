@@ -144,7 +144,7 @@ impl Workflow {
         self.values()
             .iter()
             .filter(|value| {
-                value.to_lowercase().contains(&input) || Workflow::fuzzy(&input, value) <= 2
+                value.to_lowercase().contains(&input) || Workflow::levenshtein(&input, value) <= 2
             })
             .take(5)
             .map(|value| value.to_owned())
@@ -157,7 +157,7 @@ impl Workflow {
         let mut min_value = None;
 
         for value in self.values() {
-            let distance = Workflow::fuzzy(input, value.as_str());
+            let distance = Workflow::levenshtein(input, value.as_str());
             let contains_word = value.to_lowercase().contains(input);
 
             if distance < min_distance || contains_word {
@@ -174,7 +174,7 @@ impl Workflow {
     /// # Credit
     ///
     /// Credit where credit is due. This implementation is taken from [wooorm/levenshtein-rs](https://github.com/wooorm/levenshtein-rs)
-    fn fuzzy(from: &str, to: &str) -> usize {
+    fn levenshtein(from: &str, to: &str) -> usize {
         let mut result = 0;
 
         if from == to {
