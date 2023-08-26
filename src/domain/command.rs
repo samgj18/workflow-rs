@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, propagate_version = true)]
 pub enum Command {
     Run(Run),
     List(List),
@@ -14,7 +14,7 @@ pub enum Command {
 pub struct List;
 
 #[derive(Parser, Debug)]
-#[command(about = "Run a workflow, e.g. `workflow run <name>`")]
+#[command(about = "Run a workflow, e.g. `workflow run --name <name>`")]
 pub struct Run {
     #[arg(short, long, help = "The name of the workflow")]
     name: String,

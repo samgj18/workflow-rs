@@ -18,7 +18,14 @@ use crate::{
 
 use super::prelude::Parser;
 
-pub trait Executor<T, R> {
+pub trait Executor {
+    /// The error type
+    type Error;
+    /// The output type
+    type Output;
+    /// The arguments type
+    type Args;
+
     /// Given a `Workflow` struct, execute the workflow
     ///
     /// # Arguments
@@ -26,10 +33,14 @@ pub trait Executor<T, R> {
     ///
     /// # Returns
     /// * A `Result` with a `String` or an `Error`
-    fn execute(&self, args: Option<T>) -> Result<R, Error>;
+    fn execute(&self, args: Self::Args) -> Result<Self::Output, Self::Error>;
 }
 
-impl Executor<Workflow, Output> for Command {
+impl Executor for Command {
+    type Error = Error;
+    type Output = Output;
+    type Args = Option<Workflow>;
+
     fn execute(&self, workflow: Option<Workflow>) -> Result<Output, Error> {
         match workflow {
             Some(workflow) => {
