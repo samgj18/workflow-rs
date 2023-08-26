@@ -12,8 +12,8 @@ use skim::{
 };
 
 use crate::{
-    domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{Output, Prepare, Run, Store, WorkflowDescription, STORE},
+    domain::{error::Error, workflow::Workflow},
+    prelude::{List, Output, Prepare, Reset, Run, Search, Store, Unit, WorkflowDescription, STORE},
 };
 
 use super::prelude::Parser;
@@ -36,167 +36,169 @@ pub trait Executor {
     fn execute(&self, args: Self::Args) -> Result<Self::Output, Self::Error>;
 }
 
-impl Executor for Command {
+impl Executor for Run {
     type Error = Error;
     type Output = Output;
-    type Args = Option<Workflow>;
+    type Args = Workflow;
 
-    fn execute(&self, workflow: Option<Workflow>) -> Result<Output, Error> {
-        match workflow {
-            Some(workflow) => {
-                match self {
-                    Command::Run(_) => {
-                        let precedence = workflow.try_parse::<Error>(None)?;
-                        let command = workflow.command().replace(&precedence)?;
-                        let (cols, rows) =
-                            terminal::size().map_err(|e| Error::Io(Some(e.into())))?;
-                        let text = format!(
-                            "{}{}{}{}",
-                            SetForegroundColor(Color::Green), // Set the text color to red
-                            "Command to execute: ",
-                            command,
-                            ResetColor // Reset the text color to default
-                        );
+    fn execute(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let precedence = args.try_parse::<Error>(None)?;
+        let command = args.command().replace(&precedence)?;
+        let (cols, rows) = terminal::size().map_err(|e| Error::Io(Some(e.into())))?;
+        let text = format!(
+            "{}{}{}{}",
+            SetForegroundColor(Color::Green), // Set the text color to red
+            "Command to execute: ",
+            command,
+            ResetColor // Reset the text color to default
+        );
 
-                        println!("\n");
-                        println!("{}", text);
-                        println!("\n");
+        println!("\n");
+        println!("{}", text);
+        println!("\n");
 
-                        let is_execute =
-                            Select::new("Do you want to execute the command?", vec!["y", "n"])
-                                .prompt_skippable()
-                                .map(|s| s.map(|s| s == "y").unwrap_or(false))
-                                .map_err(|e| Error::ReadError(Some(e.into())))?;
+        let is_execute = Select::new("Do you want to execute the command?", vec!["y", "n"])
+            .prompt_skippable()
+            .map(|s| s.map(|s| s == "y").unwrap_or(false))
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
 
-                        if is_execute {
-                            execute!(
-                                std::io::stdout(),
-                                Clear(ClearType::All),
-                                Print(text),
-                                Print("\n"),
-                                Print("\n"),
-                            )
-                            .map_err(|e| Error::Io(Some(e.into())))?;
+        if is_execute {
+            execute!(
+                std::io::stdout(),
+                Clear(ClearType::All),
+                Print(text),
+                Print("\n"),
+                Print("\n"),
+            )
+            .map_err(|e| Error::Io(Some(e.into())))?;
 
-                            // What if the command needs a user input?
-                            let output: std::process::Output = std::process::Command::new("sh")
-                                .arg("-c")
-                                .arg(&command)
-                                .output()
-                                .map_err(|e| Error::Io(Some(e.into())))?;
+            // What if the command needs a user input?
+            let output: std::process::Output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&command)
+                .output()
+                .map_err(|e| Error::Io(Some(e.into())))?;
 
-                            let stdout = String::from_utf8_lossy(&output.stdout);
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            let is_success = output.status.success();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let is_success = output.status.success();
 
-                            let message = if is_success {
-                                format!(
-                                    "{}{}{}",
-                                    SetForegroundColor(Color::Green),
-                                    stdout,
-                                    ResetColor
-                                )
-                            } else {
-                                format!(
-                                    "{}{}{}",
-                                    SetForegroundColor(Color::Red),
-                                    stderr,
-                                    ResetColor
-                                )
-                            };
+            let message = if is_success {
+                format!(
+                    "{}{}{}",
+                    SetForegroundColor(Color::Green),
+                    stdout,
+                    ResetColor
+                )
+            } else {
+                format!("{}{}{}", SetForegroundColor(Color::Red), stderr, ResetColor)
+            };
 
-                            execute!(std::io::stdout(), Print(message))
-                                .map_err(|e| Error::Io(Some(e.into())))?;
+            execute!(std::io::stdout(), Print(message)).map_err(|e| Error::Io(Some(e.into())))?;
 
-                            execute!(std::io::stdout(), SetSize(cols, rows),)
-                                .map_err(|e| Error::Io(Some(e.into())))?;
-                        }
-                        Ok(Output::new("command", &command))
-                    }
-                    Command::List(_) => Ok(Output::unsupported()),
-                    Command::Search(_) => Ok(Output::unsupported()),
-                    Command::Reset(_) => Ok(Output::unsupported()),
-                }
-            }
-            None => match self {
-                Command::List(_) => {
-                    let workflows = STORE.get_all();
+            execute!(std::io::stdout(), SetSize(cols, rows),)
+                .map_err(|e| Error::Io(Some(e.into())))?;
+        }
+        Ok(Output::new("command", &command))
+    }
+}
 
-                    let workflows: Vec<String> = workflows?
-                        .into_iter()
-                        .map(|workflow| {
-                            let description = workflow
-                                .description()
-                                .map(|description| description.to_owned())
-                                .unwrap_or(WorkflowDescription::new("No description"));
-                            let name = workflow.name();
-                            let command = workflow.command();
+impl Executor for List {
+    type Error = Error;
 
-                            let description = format!("Description: {}", description.inner());
-                            let name = format!(
-                                "{}{}{}: ",
-                                SetForegroundColor(Color::Green),
-                                name.inner(),
-                                ResetColor
-                            );
-                            let command = format!("Command: {}", command.inner());
+    type Output = Output;
 
-                            format!(
-                                "* {}{}\n{}\n{}{}{}",
-                                SetForegroundColor(Color::White),
-                                name,
-                                description,
-                                command,
-                                "\n",
-                                ResetColor,
-                            )
-                        })
-                        .collect();
+    type Args = Unit;
 
-                    println!("{}", workflows.join("\n"));
-                    Ok(Output::new("list", "success"))
-                }
-                Command::Run(_) => Err(Error::InvalidCommand(Some(
-                    "Please provide a workflow. See --help".into(),
-                ))),
-                Command::Search(_) => {
-                    // TODO: Figure out how to also look by tags, author, etc.
-                    let workflows = STORE.get_all()?;
+    fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
+        let workflows = STORE.get_all();
 
-                    let options = SkimOptionsBuilder::default()
-                        .height(Some("100%"))
-                        .multi(false)
-                        .preview(Some("")) // preview should be specified to enable preview window
-                        .build()
-                        .map_err(|e| Error::ReadError(Some(e.into())))?;
+        let workflows: Vec<String> = workflows?
+            .into_iter()
+            .map(|workflow| {
+                let description = workflow
+                    .description()
+                    .map(|description| description.to_owned())
+                    .unwrap_or(WorkflowDescription::new("No description"));
+                let name = workflow.name();
+                let command = workflow.command();
 
-                    let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-                    let _ = std::thread::spawn(move || {
-                        workflows.into_iter().for_each(|workflow| {
-                            let _ = tx_item.send(Arc::new(workflow));
-                        });
-                    });
+                let description = format!("Description: {}", description.inner());
+                let name = format!(
+                    "{}{}{}: ",
+                    SetForegroundColor(Color::Green),
+                    name.inner(),
+                    ResetColor
+                );
+                let command = format!("Command: {}", command.inner());
 
-                    let items = Skim::run_with(&options, Some(rx_item))
-                        .map(|out| out.selected_items)
-                        .unwrap_or_else(Vec::new);
+                format!(
+                    "* {}{}\n{}\n{}{}{}",
+                    SetForegroundColor(Color::White),
+                    name,
+                    description,
+                    command,
+                    "\n",
+                    ResetColor,
+                )
+            })
+            .collect();
 
-                    let selection = items
-                        .into_iter()
-                        .map(|item| item.clone().output().into_owned().trim().to_string())
-                        .filter(|item| !item.is_empty())
-                        .collect::<Vec<String>>();
+        println!("{}", workflows.join("\n"));
+        Ok(Output::new("list", "success"))
+    }
+}
 
-                    let workflow = selection
-                        .first()
-                        .ok_or_else(|| Error::ReadError(Some("No workflow selected".into())))?;
+impl Executor for Search {
+    type Error = Error;
+    type Output = Output;
+    type Args = Unit;
 
-                    let command = Command::Run(Run::new(workflow));
-                    let args = command.prepare()?;
-                    command.execute(args)
-                }
-                Command::Reset(_) => {
-                    execute!(
+    fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
+        // TODO: Figure out how to also look by tags, author, etc.
+        let workflows = STORE.get_all()?;
+
+        let options = SkimOptionsBuilder::default()
+            .height(Some("100%"))
+            .multi(false)
+            .preview(Some("")) // preview should be specified to enable preview window
+            .build()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
+        let _ = std::thread::spawn(move || {
+            workflows.into_iter().for_each(|workflow| {
+                let _ = tx_item.send(Arc::new(workflow));
+            });
+        });
+
+        let items = Skim::run_with(&options, Some(rx_item))
+            .map(|out| out.selected_items)
+            .unwrap_or_else(Vec::new);
+
+        let selection = items
+            .into_iter()
+            .map(|item| item.clone().output().into_owned().trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect::<Vec<String>>();
+
+        let workflow = selection
+            .first()
+            .ok_or_else(|| Error::ReadError(Some("No workflow selected".into())))?;
+
+        let command = Run::new(workflow);
+        let args = command.prepare()?;
+        command.execute(args)
+    }
+}
+
+impl Executor for Reset {
+    type Error = Error;
+    type Output = Output;
+    type Args = Unit;
+
+    fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
+        execute!(
                         std::io::stdout(),
                         Clear(ClearType::All),
                         SetForegroundColor(Color::Green),
@@ -211,20 +213,16 @@ impl Executor for Command {
                         SetForegroundColor(Color::Reset),
                     )
                     .map_err(|e| Error::Io(Some(e.into())))?;
-                    let is_reset =
-                        Select::new("Do you want to reset the workflows?", vec!["y", "n"])
-                            .prompt_skippable()
-                            .map(|s| s.map(|s| s == "y").unwrap_or(false))
-                            .map_err(|e| Error::ReadError(Some(e.into())))?;
+        let is_reset = Select::new("Do you want to reset the workflows?", vec!["y", "n"])
+            .prompt_skippable()
+            .map(|s| s.map(|s| s == "y").unwrap_or(false))
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
 
-                    if is_reset {
-                        STORE.clone().delete_all()?;
-                        Ok(Output::new("reset", ""))
-                    } else {
-                        Ok(Output::new("reset", "No workflows were reset"))
-                    }
-                }
-            },
+        if is_reset {
+            STORE.clone().delete_all()?;
+            Ok(Output::new("reset", ""))
+        } else {
+            Ok(Output::new("reset", "No workflows were reset"))
         }
     }
 }
@@ -277,9 +275,9 @@ mod tests {
     fn test_execute_list() {
         set_env_var();
 
-        let command = Command::List(List::default());
+        let command = List::default();
 
-        let result = command.execute(None).unwrap();
+        let result = command.execute(()).unwrap();
         let message = result.message();
         let r#type = result.r#type();
 

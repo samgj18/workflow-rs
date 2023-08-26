@@ -1,6 +1,11 @@
 use crate::prelude::*;
 
 pub trait Prepare {
+    /// The type of the output.
+    type Output;
+    /// The type of the error.
+    type Error;
+
     /// Given a workflow name, returns an `Option` of `Workflow`
     /// depending on whether the command actually needs a workflow or not
     /// or an `Error`.
@@ -12,25 +17,17 @@ pub trait Prepare {
     ///
     /// # Returns
     /// * A `Workflow` struct or an `Error`
-    fn prepare(&self) -> Result<Option<Workflow>, Error>;
+    fn prepare(&self) -> Result<Self::Output, Self::Error>;
 }
 
-impl Prepare for Command {
-    fn prepare(&self) -> Result<Option<Workflow>, Error> {
-        match self {
-            Command::Run(command) => {
-                let id = command
-                    .name()
-                    .trim()
-                    .to_lowercase()
-                    .replace(['-', ' '], "_");
+impl Prepare for Run {
+    type Output = Workflow;
+    type Error = Error;
 
-                STORE.get(&id).ok().ok_or(Error::InvalidName(None))
-            }
-            Command::List(_) => Ok(None),
-            Command::Search(_) => Ok(None),
-            Command::Reset(_) => Ok(None),
-        }
+    fn prepare(&self) -> Result<Workflow, Error> {
+        let id = self.name().trim().to_lowercase().replace(['-', ' '], "_");
+
+        STORE.get(&id)?.ok_or(Error::InvalidName(None))
     }
 }
 
@@ -65,23 +62,14 @@ mod tests {
     fn test_prepare() {
         set_env_var();
 
-        let command = Command::Run(Run::new("echo.yml"));
+        let command = Run::new("echo.yml");
         let result = command.prepare();
 
-        let binding = result.as_ref().unwrap().as_ref().unwrap().clone().id();
+        let binding = result.as_ref().unwrap().clone().id();
         let id = binding.inner();
-        let description = result
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .description()
-            .unwrap()
-            .inner();
-        let command = result.as_ref().unwrap().as_ref().unwrap().command().inner();
-        let is_some = result.is_ok() && result.as_ref().unwrap().is_some();
+        let description = result.as_ref().unwrap().description().unwrap().inner();
+        let command = result.as_ref().unwrap().command().inner();
 
-        assert!(is_some);
         assert_eq!(id, "echo");
         assert_eq!(description, "Echo a message with a list of arguments");
         assert_eq!(command, "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"");
