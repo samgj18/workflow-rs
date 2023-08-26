@@ -8,9 +8,22 @@ fn main() -> Result<Unit, Error> {
     // Parse the command line arguments.
     let command: Command = Command::parse();
 
-    // Prepare and execute the command.
-    let workflow = command.prepare()?;
-    command.execute(workflow)?;
+    // Execute the command.
+    match command {
+        Command::Run(command) => {
+            let workflow = command.prepare()?;
+            command.execute(workflow)?;
+        }
+        Command::List(command) => {
+            command.execute(())?;
+        }
+        Command::Search(command) => {
+            command.execute(())?;
+        }
+        Command::Reset(command) => {
+            command.execute(())?;
+        }
+    }
 
     Ok(())
 }

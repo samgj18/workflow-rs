@@ -1,6 +1,8 @@
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentName(String);
 
 impl ArgumentName {
@@ -9,8 +11,22 @@ impl ArgumentName {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentDescription(String);
+
+impl Deref for ArgumentDescription {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<ArgumentDescription> for ArgumentDescription {
+    fn as_ref(&self) -> &ArgumentDescription {
+        self
+    }
+}
 
 impl ArgumentDescription {
     pub fn new(value: &str) -> Self {
@@ -22,7 +38,7 @@ impl ArgumentDescription {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentDefault(String);
 
 impl ArgumentDefault {
@@ -35,7 +51,7 @@ impl ArgumentDefault {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentValue(String);
 
 impl ArgumentValue {
@@ -48,7 +64,7 @@ impl ArgumentValue {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct Argument {
     /// The name of the argument
     name: ArgumentName,
@@ -82,6 +98,10 @@ impl Argument {
 
     pub fn description(&self) -> Option<&ArgumentDescription> {
         self.description.as_ref()
+    }
+
+    pub fn def_description(&self) -> &str {
+        self.description.as_deref().unwrap_or("")
     }
 
     pub fn default(&self) -> Option<&ArgumentDefault> {

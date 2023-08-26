@@ -33,14 +33,18 @@ impl Parser<Precedence, String> for Workflow {
         let precedence = self.arguments().iter().try_fold(
             HashMap::new(),
             |mut acc, argument| -> Result<HashMap<String, String>, Error> {
+                let name = argument.name().inner().to_string();
+                let suggester = self.clone();
                 let value = if !argument.values().is_empty() {
                     Text::new(argument.name().inner())
                         .with_validator(required!("This field is required"))
-                        .with_autocomplete(self.clone())
+                        .with_help_message(argument.def_description())
+                        .with_autocomplete(move |i: &str| suggester.suggestion(i, name.as_str()))
                         .prompt()
                         .map_err(|e| Error::ReadError(Some(e.into())))?
                 } else {
                     Text::new(argument.name().inner())
+                        .with_help_message(argument.def_description())
                         .prompt()
                         .map_err(|e| Error::ReadError(Some(e.into())))?
                 };

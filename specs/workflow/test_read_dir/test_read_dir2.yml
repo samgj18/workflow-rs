@@ -1,0 +1,4 @@
+---
+name: Test Read Dir 2
+command: |-
+  echo "Hello World"
