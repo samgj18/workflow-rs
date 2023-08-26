@@ -1,13 +1,19 @@
+use std::sync::Arc;
+
 use crossterm::{
     execute,
-    style::{Color, Print, ResetColor, SetForegroundColor},
+    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{self, Clear, ClearType, SetSize},
 };
-use inquire::{required, Select, Text};
+use inquire::Select;
+use skim::{
+    prelude::{unbounded, SkimOptionsBuilder},
+    Skim, SkimItemReceiver, SkimItemSender,
+};
 
 use crate::{
     domain::{command::Command, error::Error, workflow::Workflow},
-    prelude::{prepare_workflows, Output, Prepare, Run, Unit, WorkflowDescription, WORKDIR},
+    prelude::{Output, Prepare, Run, Store, WorkflowDescription, STORE},
 };
 
 use super::prelude::Parser;
@@ -61,10 +67,34 @@ impl Executor<Workflow, Output> for Command {
                             )
                             .map_err(|e| Error::Io(Some(e.into())))?;
 
-                            std::process::Command::new("sh")
+                            // What if the command needs a user input?
+                            let output: std::process::Output = std::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(&command)
-                                .spawn()
+                                .output()
+                                .map_err(|e| Error::Io(Some(e.into())))?;
+
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let is_success = output.status.success();
+
+                            let message = if is_success {
+                                format!(
+                                    "{}{}{}",
+                                    SetForegroundColor(Color::Green),
+                                    stdout,
+                                    ResetColor
+                                )
+                            } else {
+                                format!(
+                                    "{}{}{}",
+                                    SetForegroundColor(Color::Red),
+                                    stderr,
+                                    ResetColor
+                                )
+                            };
+
+                            execute!(std::io::stdout(), Print(message))
                                 .map_err(|e| Error::Io(Some(e.into())))?;
 
                             execute!(std::io::stdout(), SetSize(cols, rows),)
@@ -74,99 +104,114 @@ impl Executor<Workflow, Output> for Command {
                     }
                     Command::List(_) => Ok(Output::unsupported()),
                     Command::Search(_) => Ok(Output::unsupported()),
+                    Command::Reset(_) => Ok(Output::unsupported()),
                 }
             }
             None => match self {
                 Command::List(_) => {
-                    let files =
-                        std::fs::read_dir(&*WORKDIR).map_err(|e| Error::Io(Some(e.into())))?;
+                    let workflows = STORE.get_all();
 
-                    let mut paths = vec![];
-
-                    files
+                    let workflows: Vec<String> = workflows?
                         .into_iter()
-                        .filter(|file| {
-                            file.as_ref().map_or(false, |file| {
-                                file.metadata().map_or(false, |metadata| metadata.is_file())
-                            })
+                        .map(|workflow| {
+                            let description = workflow
+                                .description()
+                                .map(|description| description.to_owned())
+                                .unwrap_or(WorkflowDescription::new("No description"));
+                            let name = workflow.name();
+                            let command = workflow.command();
+
+                            let description = format!("Description: {}", description.inner());
+                            let name = format!(
+                                "{}{}{}: ",
+                                SetForegroundColor(Color::Green),
+                                name.inner(),
+                                ResetColor
+                            );
+                            let command = format!("Command: {}", command.inner());
+
+                            format!(
+                                "* {}{}\n{}\n{}{}{}",
+                                SetForegroundColor(Color::White),
+                                name,
+                                description,
+                                command,
+                                "\n",
+                                ResetColor,
+                            )
                         })
-                        .try_for_each::<_, Result<Unit, Error>>(|file| {
-                            let file = file.map_err(|e| Error::Io(Some(e.into())))?;
-                            let path = file
-                                .path()
-                                .into_os_string()
-                                .into_string()
-                                .map_err(|_| Error::Io(None))?;
+                        .collect();
 
-                            // Read the file and gather descriptions
-                            let name = {
-                                #[cfg(target_os = "windows")]
-                                {
-                                    path.split('\\').last()
-                                }
-                                #[cfg(not(target_os = "windows"))]
-                                {
-                                    path.split('/').last()
-                                }
-                            };
-                            // Convert option to HashSet
-                            let name = name.map_or_else(Vec::new, |name| vec![name]);
-
-                            let workflows: Vec<String> = prepare_workflows(&name, &WORKDIR)?
-                                .into_iter()
-                                .map(|workflow| {
-                                    let description = workflow
-                                        .description()
-                                        .map(|description| description.to_owned())
-                                        .unwrap_or(WorkflowDescription::new("No description"));
-                                    let name = workflow.name();
-                                    let command = workflow.command();
-
-                                    let description =
-                                        format!("Description: {}", description.inner());
-                                    let name = format!(
-                                        "{}{}{}: ",
-                                        SetForegroundColor(Color::Green),
-                                        name.inner(),
-                                        ResetColor
-                                    );
-                                    let command = format!("Command: {}", command.inner());
-
-                                    format!(
-                                        "* {}{}\n{}\n{}{}{}",
-                                        SetForegroundColor(Color::White),
-                                        name,
-                                        description,
-                                        command,
-                                        "\n",
-                                        ResetColor,
-                                    )
-                                })
-                                .collect();
-
-                            paths.push(path);
-
-                            println!("{}", workflows.join("\n"));
-                            Ok(())
-                        })?;
-
-                    Ok(Output::new("list", &paths.join("\n")))
+                    println!("{}", workflows.join("\n"));
+                    Ok(Output::new("list", "success"))
                 }
                 Command::Run(_) => Err(Error::InvalidCommand(Some(
                     "Please provide a workflow. See --help".into(),
                 ))),
-                Command::Search(command) => {
-                    let workflow = Text::new("Search for a workflow")
-                        .with_validator(required!("This field is required"))
-                        .with_autocomplete(command.clone())
-                        .prompt()
+                Command::Search(_) => {
+                    // TODO: Figure out how to also look by tags, author, etc.
+                    let workflows = STORE.get_all()?;
+
+                    let options = SkimOptionsBuilder::default()
+                        .height(Some("100%"))
+                        .multi(false)
+                        .preview(Some("")) // preview should be specified to enable preview window
+                        .build()
                         .map_err(|e| Error::ReadError(Some(e.into())))?;
 
-                    let workflow = workflow.trim().to_string();
+                    let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
+                    let _ = std::thread::spawn(move || {
+                        workflows.into_iter().for_each(|workflow| {
+                            let _ = tx_item.send(Arc::new(workflow));
+                        });
+                    });
 
-                    let command = Command::Run(Run::new(&workflow));
+                    let items = Skim::run_with(&options, Some(rx_item))
+                        .map(|out| out.selected_items)
+                        .unwrap_or_else(Vec::new);
+
+                    let selection = items
+                        .into_iter()
+                        .map(|item| item.clone().output().into_owned().trim().to_string())
+                        .filter(|item| !item.is_empty())
+                        .collect::<Vec<String>>();
+
+                    let workflow = selection
+                        .first()
+                        .ok_or_else(|| Error::ReadError(Some("No workflow selected".into())))?;
+
+                    let command = Command::Run(Run::new(workflow));
                     let args = command.prepare()?;
                     command.execute(args)
+                }
+                Command::Reset(_) => {
+                    execute!(
+                        std::io::stdout(),
+                        Clear(ClearType::All),
+                        SetForegroundColor(Color::Green),
+                        SetAttribute(Attribute::Bold),
+                        Print("\u{2139} "),
+                        SetAttribute(Attribute::Reset),
+                        Print("The CLI does a reset every time you run it. This is to ensure that the workflows are up to date."),
+                        Print("\n"),
+                        Print("However, if you want to reset the workflows, you can do it here."),
+                        Print("\n"),
+                        Print("\n"),
+                        SetForegroundColor(Color::Reset),
+                    )
+                    .map_err(|e| Error::Io(Some(e.into())))?;
+                    let is_reset =
+                        Select::new("Do you want to reset the workflows?", vec!["y", "n"])
+                            .prompt_skippable()
+                            .map(|s| s.map(|s| s == "y").unwrap_or(false))
+                            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+                    if is_reset {
+                        STORE.clone().delete_all()?;
+                        Ok(Output::new("reset", ""))
+                    } else {
+                        Ok(Output::new("reset", "No workflows were reset"))
+                    }
                 }
             },
         }
@@ -227,18 +272,7 @@ mod tests {
         let message = result.message();
         let r#type = result.r#type();
 
-        let msg_res = {
-            #[cfg(target_os = "windows")]
-            {
-                ".\\specs\\echo.yml"
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                "./specs/echo.yml"
-            }
-        };
-
-        assert_eq!(message, msg_res);
+        assert_eq!(message, "success");
         assert_eq!(r#type, "list");
     }
 }

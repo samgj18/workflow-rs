@@ -1,7 +1,4 @@
 use clap::Parser;
-use inquire::{autocompletion::Replacement, Autocomplete, CustomUserError};
-
-use crate::prelude::{Fuzzy, Store, STORE};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -9,11 +6,12 @@ pub enum Command {
     Run(Run),
     List(List),
     Search(Search),
+    Reset(Reset),
 }
 
 #[derive(Parser, Debug, Default)]
 #[command(about = "List all available workflows, e.g. `workflow list`")]
-pub struct List {}
+pub struct List;
 
 #[derive(Parser, Debug)]
 #[command(about = "Run a workflow, e.g. `workflow run <name>`")]
@@ -34,75 +32,24 @@ impl Run {
     }
 }
 
-#[derive(Parser, Debug, Clone)]
-#[command(about = "Search for workflows, e.g. `workflow search <query>`")]
-pub struct Search {
-    #[arg(short, long, help = "The query to search for")]
-    query: Option<String>,
-}
-
-impl From<&str> for Search {
-    fn from(query: &str) -> Self {
-        Self {
-            query: Some(query.to_string()),
-        }
-    }
-}
+#[derive(Parser, Debug, Clone, Default)]
+#[command(about = "Search for workflows, e.g. `workflow search`")]
+pub struct Search;
 
 impl Search {
     #[cfg(test)]
-    pub fn new(query: Option<&str>) -> Self {
-        Self {
-            query: query.map(|s| s.to_string()),
-        }
-    }
-
-    pub fn query(&self) -> Option<&str> {
-        self.query.as_deref()
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl Autocomplete for Search {
-    /// Is called whenever the user's text input is modified
-    fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, CustomUserError> {
-        // Very simple without taking into account tags, description, etc.
-        let suggestions = STORE
-            .search()
-            .into_iter()
-            .flat_map(|workflows| {
-                workflows
-                    .into_iter()
-                    .map(|workflow| workflow.name().inner().to_owned())
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+#[derive(Parser, Debug, Default)]
+#[command(about = "Reset the workflow store, e.g. `workflow reset`")]
+pub struct Reset;
 
-        Ok(self
-            .search(input, &suggestions)
-            .into_iter()
-            .map(|suggestion| suggestion.to_owned())
-            .collect())
-    }
-
-    /// Is called whenever the user presses tab
-    fn get_completion(
-        &mut self,
-        input: &str,
-        highlighted_suggestion: Option<String>,
-    ) -> Result<inquire::autocompletion::Replacement, CustomUserError> {
-        match highlighted_suggestion {
-            Some(suggestion) => Ok(Replacement::Some(suggestion)),
-            None => {
-                let completion = {
-                    let suggestions = self.get_suggestions(input)?;
-                    suggestions.first().map(|s| s.to_string())
-                };
-
-                match completion {
-                    Some(completion) => Ok(Replacement::Some(completion)),
-                    None => Ok(Replacement::None),
-                }
-            }
-        }
+impl Reset {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {}
     }
 }

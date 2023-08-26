@@ -1,6 +1,7 @@
 pub mod configuration;
 pub mod crawler;
-pub mod fuzzy;
+pub mod file;
+pub mod hasher;
 
 pub mod prelude {
     #[doc(inline)]
@@ -8,5 +9,7 @@ pub mod prelude {
     #[doc(inline)]
     pub use super::crawler::*;
     #[doc(inline)]
-    pub use super::fuzzy::*;
+    pub use super::file::*;
+    #[doc(inline)]
+    pub use super::hasher::*;
 }

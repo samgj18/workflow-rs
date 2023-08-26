@@ -1,6 +1,11 @@
-use std::path::Path;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
-use crate::prelude::{prepare_workflows, Error, FileExtension, Store, Unit, WorkStore};
+use crate::prelude::{
+    Error, File, FileExtension, FileMetadata, Store, Unit, WorkStore, Workflow, WorkflowId,
+};
 
 pub struct Crawler {}
 
@@ -18,30 +23,40 @@ impl Crawler {
     /// * `directory` - The directory to crawl.
     /// * `store` - The store to insert the data into.
     pub fn crawl(directory: &Path, store: &WorkStore) -> Result<Unit, Error> {
-        let mut store = store.clone();
-        std::fs::read_dir(directory)
-            .map_err(|e| Error::Io(Some(e.into())))?
-            .try_for_each::<_, Result<Unit, Error>>(|file| {
-                let file = file.map_err(|e| Error::Io(Some(e.into())))?;
-                let path = file.path();
-                if path.is_file() {
-                    let name = FileExtension::format(
-                        path.file_name()
-                            .ok_or(Error::InvalidName(None))?
-                            .to_str()
-                            .ok_or(Error::InvalidName(None))?,
-                    );
+        let mut store: WorkStore = store.clone();
+        let files: Vec<FileMetadata> = File::new(directory).read_dir()?;
+        let names: &[&str] = &files
+            .iter()
+            .map(|file| file.name())
+            .collect::<HashSet<&str>>()
+            .into_iter()
+            .collect::<Vec<&str>>();
+        let workflows: Vec<Workflow> = prepare_workflows(names, directory)?;
 
-                    let workflow = prepare_workflows(&[name.as_str()], directory)?
-                        .into_iter()
-                        .next()
-                        .ok_or(Error::SchemaError(None))?;
+        let workflows_checksums: HashMap<WorkflowId, u64> = workflows
+            .iter()
+            .map(|workflow| (workflow.id(), workflow.checksum()))
+            .collect::<HashMap<WorkflowId, u64>>();
 
-                    store.insert(name.as_str(), workflow)?;
-                }
+        let stored_workflows = store.get_all()?;
 
-                Ok(())
-            })
+        let stored_workflows_checksums: HashMap<WorkflowId, u64> = stored_workflows
+            .iter()
+            .map(|workflow| (workflow.id(), workflow.checksum()))
+            .collect::<HashMap<WorkflowId, u64>>();
+
+        let is_different = workflows_checksums.iter().any(|(id, checksum)| {
+            stored_workflows_checksums
+                .get(id)
+                .map_or(true, |stored_checksum| stored_checksum != checksum)
+        });
+
+        if is_different {
+            store.delete_all()?;
+            store.insert_all(workflows)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -73,13 +88,54 @@ mod tests {
     }
 
     #[test]
+    fn test_load_workflow_file() {
+        let value = "echo.yml";
+        let result = load_workflow_file(Path::new(WORKFLOW), Path::new(value));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_workflow_string() {
+        let workflow = r#"
+            name: test
+            command: test
+        "#;
+        let result = parse_workflow_string(workflow.to_owned());
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_crawl() {
         set_env_var();
         Crawler::crawl(Path::new(WORKFLOW), &STORE).unwrap();
 
-        let workflows = STORE.search().unwrap();
+        let workflows = STORE.get_all().unwrap();
 
         assert_eq!(workflows.len(), 1);
-        assert_eq!(workflows[0].name().inner(), "echo");
+        assert_eq!(workflows[0].id().inner(), "echo");
     }
+}
+
+/// Prepare the workflow for execution.
+fn prepare_workflows(names: &[&str], location: &Path) -> Result<Vec<Workflow>, Error> {
+    let values = names
+        .iter()
+        .map(|name| FileExtension::format(name))
+        .collect::<HashSet<String>>();
+
+    values
+        .iter()
+        .map(|value| load_workflow_file(location, Path::new(value)).and_then(parse_workflow_string))
+        .collect::<Result<Vec<Workflow>, Error>>()
+}
+
+/// Load the workflow file from the given location.
+fn load_workflow_file(workdir: &Path, value: &Path) -> Result<String, Error> {
+    let path = Path::new(&workdir).join(value);
+    std::fs::read_to_string(path).map_err(|e| Error::ReadError(Some(e.into())))
+}
+
+/// Parse the workflow string into a workflow.
+fn parse_workflow_string(workflow: String) -> Result<Workflow, Error> {
+    serde_yaml::from_str::<Workflow>(&workflow).map_err(|e| Error::ParseError(Some(e.into())))
 }

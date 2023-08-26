@@ -19,15 +19,17 @@ impl Prepare for Command {
     fn prepare(&self) -> Result<Option<Workflow>, Error> {
         match self {
             Command::Run(command) => {
-                let names: &[&str] = &[command.name()];
+                let id = command
+                    .name()
+                    .trim()
+                    .to_lowercase()
+                    .replace(['-', ' '], "_");
 
-                prepare_workflows(names, &WORKDIR)?
-                    .pop()
-                    .ok_or(Error::InvalidName(None))
-                    .map(Some)
+                STORE.get(&id).ok().ok_or(Error::InvalidName(None))
             }
             Command::List(_) => Ok(None),
             Command::Search(_) => Ok(None),
+            Command::Reset(_) => Ok(None),
         }
     }
 }
@@ -36,7 +38,6 @@ impl Prepare for Command {
 mod tests {
     use super::*;
     use crate::prelude::Run;
-    use std::path::Path;
 
     pub const WORKFLOW: &str = {
         #[cfg(target_os = "windows")]
@@ -61,30 +62,14 @@ mod tests {
     }
 
     #[test]
-    fn test_load_workflow_file() {
-        let value = "echo.yml";
-        let result = load_workflow_file(Path::new(WORKFLOW), Path::new(value));
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_parse_workflow_string() {
-        let workflow = r#"
-            name: test
-            command: test
-        "#;
-        let result = parse_workflow_string(workflow.to_owned());
-        assert!(result.is_ok());
-    }
-
-    #[test]
     fn test_prepare() {
         set_env_var();
 
         let command = Command::Run(Run::new("echo.yml"));
         let result = command.prepare();
 
-        let name = result.as_ref().unwrap().as_ref().unwrap().name().inner();
+        let binding = result.as_ref().unwrap().as_ref().unwrap().clone().id();
+        let id = binding.inner();
         let description = result
             .as_ref()
             .unwrap()
@@ -97,7 +82,7 @@ mod tests {
         let is_some = result.is_ok() && result.as_ref().unwrap().is_some();
 
         assert!(is_some);
-        assert_eq!(name, "echo");
+        assert_eq!(id, "echo");
         assert_eq!(description, "Echo a message with a list of arguments");
         assert_eq!(command, "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"");
     }
