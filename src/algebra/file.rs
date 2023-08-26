@@ -66,6 +66,8 @@ impl File {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     pub const WORKFLOW: &str = {
@@ -84,9 +86,11 @@ mod tests {
         let path = Path::new(WORKFLOW).join("test_read_dir");
         let file = File::new(&path);
         let files = file.read_dir().unwrap();
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[1].name(), "test_read_dir.yml");
-        assert_eq!(files[0].name(), "test_read_dir2.yml");
+        let names: HashSet<&str> = files.iter().map(|f| f.name()).collect();
+
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"test_read_dir.yml"));
+        assert!(names.contains(&"test_read_dir2.yml"));
     }
 
     #[test]
