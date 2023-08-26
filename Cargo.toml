@@ -24,7 +24,8 @@ name = "workflow"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.4.0", features = ["derive"] }
+# clap = { version = "4.4.0", features = ["derive"] }
+clap = { version = "4.3.24", features = ["derive"] }
 crossterm = "0.27.0"
 handlebars = "4.3.7"
 inquire = { version = "0.6.2", features = ["editor", "console"] }
