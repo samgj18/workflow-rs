@@ -5,3 +5,4 @@ specs/index/*
 specs/clean/*
 specs/data*/*
 !specs/index/history.json
+.idea
