@@ -62,16 +62,17 @@ mod tests {
     fn test_prepare_run() {
         set_env_var();
 
+        let workflow = Workflow::new("echo", "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"", Vec::new());
+        STORE.clone().insert_all(vec![workflow]).unwrap();
+
         let command = Run::new("echo.yml");
         let result = command.prepare();
 
         let binding = result.as_ref().unwrap().clone().id();
         let id = binding.inner();
-        let description = result.as_ref().unwrap().description().unwrap().inner();
         let command = result.as_ref().unwrap().command().inner();
 
         assert_eq!(id, "echo");
-        assert_eq!(description, "Echo a message with a list of arguments");
         assert_eq!(command, "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"");
     }
 }
