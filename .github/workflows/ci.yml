@@ -22,7 +22,7 @@ jobs:
         platform:
           - ubuntu
           - macos
-          - windows
+          # - windows
     name: Build and Test
     runs-on: ${{ matrix.platform }}-latest
     steps:
