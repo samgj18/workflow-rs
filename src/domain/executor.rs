@@ -12,10 +12,6 @@ impl Output {
         }
     }
 
-    pub fn unsupported() -> Self {
-        Self::new("unsupported", "Unsupported command")
-    }
-
     pub fn r#type(&self) -> &str {
         &self.r#type
     }

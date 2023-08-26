@@ -277,7 +277,7 @@ mod tests {
     fn test_execute_list() {
         set_env_var();
 
-        let command = List::default();
+        let command = List;
 
         let result = command.execute(()).unwrap();
         let message = result.message();
