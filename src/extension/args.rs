@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prepare() {
+    fn test_prepare_run() {
         set_env_var();
 
         let command = Run::new("echo.yml");

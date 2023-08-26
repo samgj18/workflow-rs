@@ -244,6 +244,8 @@ mod tests {
     };
 
     // Depends on https://github.com/mikaelmello/inquire/issues/70
+    // as well as Search and Reset
+
     // #[test]
     // fn test_execute_run() {
     //     let command = Command::Run(Run::new("test", None));

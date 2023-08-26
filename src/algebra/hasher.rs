@@ -16,3 +16,15 @@ impl Hasher {
         hasher.finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ideal_hasher_hash() {
+        let hasher = Hasher::new();
+        let hash = hasher.hash("test");
+        assert_eq!(hash, 14402189752926126668);
+    }
+}

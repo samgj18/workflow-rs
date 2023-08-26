@@ -63,3 +63,37 @@ impl File {
         Ok(self.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub const WORKFLOW: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs\\workflow"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "./specs/workflow"
+        }
+    };
+
+    #[test]
+    fn test_read_dir() {
+        let path = Path::new(WORKFLOW).join("test_read_dir");
+        let file = File::new(&path);
+        let files = file.read_dir().unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[1].name(), "test_read_dir.yml");
+        assert_eq!(files[0].name(), "test_read_dir2.yml");
+    }
+
+    #[test]
+    fn test_create_dir_all() {
+        let path = Path::new(WORKFLOW).join("test_create_dir_all");
+        let file = File::new(&path);
+        file.create_dir_all().unwrap();
+        assert_eq!(file.read_dir().unwrap().len(), 0);
+    }
+}

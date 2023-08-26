@@ -13,7 +13,7 @@ const INSERTION_COST: usize = 1; // Weight for insertions
 const DELETION_COST: usize = 1; // Weight for deletions
 const SUBSTITUTION_COST: usize = 1; // Weight for substitutions
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowName(String);
 
 impl WorkflowName {
@@ -22,7 +22,7 @@ impl WorkflowName {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowDescription(String);
 
 impl Deref for WorkflowDescription {
@@ -43,7 +43,7 @@ impl WorkflowDescription {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowCommand(String);
 
 impl WorkflowCommand {
@@ -62,16 +62,16 @@ impl WorkflowCommand {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowSource(String);
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowAuthor(String);
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowVersion(String);
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowTag(String);
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
@@ -83,7 +83,7 @@ impl WorkflowId {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash)]
 pub struct Workflow {
     /// The name of the workflow
     name: WorkflowName,

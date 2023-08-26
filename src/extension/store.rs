@@ -141,3 +141,62 @@ impl Store<Workflow> for WorkStore {
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::Argument;
+
+    pub const WORKFLOW: &str = {
+        #[cfg(target_os = "windows")]
+        {
+            ".\\specs"
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            "./specs"
+        }
+    };
+
+    #[test]
+    fn test_store() {
+        let path = Path::new(WORKFLOW).join("test.db");
+        std::fs::create_dir(&path).unwrap_or_default();
+
+        let mut store = WorkStore::init(&path).unwrap();
+
+        let name1 = "test";
+        let command1 = "test";
+        let args1 = vec![Argument::new("test", None, Vec::new())];
+
+        let name2 = "test2";
+        let command2 = "test2";
+        let args2 = vec![Argument::new("test2", None, Vec::new())];
+
+        let workflow = Workflow::new(name1, command1, args1);
+        let workflow2 = Workflow::new(name2, command2, args2);
+
+        store
+            .insert_all(vec![workflow.clone(), workflow2.clone()])
+            .unwrap();
+
+        let result = store.get(workflow.id().inner()).unwrap();
+        let is_some = result.is_some();
+        assert!(is_some);
+        let workflow1 = result.unwrap();
+        assert_eq!(workflow1.name(), workflow.name());
+        assert_eq!(workflow1.command(), workflow.command());
+        assert_eq!(workflow1.id(), workflow.id());
+
+        let result = store.get(workflow2.id().inner()).unwrap();
+        let is_some = result.is_some();
+        assert!(is_some);
+
+        let workflow2 = result.unwrap();
+        assert_eq!(workflow2.name(), workflow2.name());
+        assert_eq!(workflow2.command(), workflow2.command());
+        assert_eq!(workflow2.id(), workflow2.id());
+
+        std::fs::remove_dir_all(&path).unwrap_or_default();
+    }
+}

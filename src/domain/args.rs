@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentName(String);
 
 impl ArgumentName {
@@ -11,7 +11,7 @@ impl ArgumentName {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentDescription(String);
 
 impl Deref for ArgumentDescription {
@@ -38,7 +38,7 @@ impl ArgumentDescription {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentDefault(String);
 
 impl ArgumentDefault {
@@ -51,7 +51,7 @@ impl ArgumentDefault {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct ArgumentValue(String);
 
 impl ArgumentValue {
@@ -64,7 +64,7 @@ impl ArgumentValue {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, PartialEq, Eq)]
 pub struct Argument {
     /// The name of the argument
     name: ArgumentName,
