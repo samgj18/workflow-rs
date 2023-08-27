@@ -141,7 +141,7 @@ impl Argument {
     }
 
     #[cfg(test)]
-    pub fn skinny(name: &str, default: Option<&str>, values: Vec<&str>) -> Self {
+    pub fn slim(name: &str, default: Option<&str>, values: Vec<&str>) -> Self {
         Self {
             name: ArgumentName(name.to_string()),
             description: None,

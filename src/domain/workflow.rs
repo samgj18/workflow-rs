@@ -233,7 +233,7 @@ impl Workflow {
     }
 
     #[cfg(test)]
-    pub fn skinny(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
+    pub fn slim(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
         Self {
             name: WorkflowName(name.to_string()),
             description: None,
@@ -489,10 +489,10 @@ mod tests {
     #[test]
     fn test_provides_correct_simple_suggestions() {
         let arguments = vec![
-            Argument::skinny("test", Some("test"), vec!["test"]),
-            Argument::skinny("test2", Some("test2"), vec!["test2"]),
+            Argument::slim("test", Some("test"), vec!["test"]),
+            Argument::slim("test2", Some("test2"), vec!["test2"]),
         ];
-        let workflow = Workflow::skinny("test", "test", arguments);
+        let workflow = Workflow::slim("test", "test", arguments);
 
         let suggestions = workflow.suggestion("test", "test").unwrap();
 
@@ -502,7 +502,7 @@ mod tests {
 
     #[test]
     fn test_provides_correct_complex_suggestions() {
-        let arguments = vec![Argument::skinny(
+        let arguments = vec![Argument::slim(
             "test",
             Some("test"),
             vec![
@@ -512,7 +512,7 @@ mod tests {
                 "turreprosation",
             ],
         )];
-        let workflow = Workflow::skinny("test", "test", arguments);
+        let workflow = Workflow::slim("test", "test", arguments);
         let suggestions = workflow.suggestion("erg", "test").unwrap();
 
         assert_eq!(suggestions.len(), 2);

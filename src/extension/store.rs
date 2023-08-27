@@ -167,14 +167,14 @@ mod tests {
 
         let name1 = "test";
         let command1 = "test";
-        let args1 = vec![Argument::skinny("test", None, Vec::new())];
+        let args1 = vec![Argument::slim("test", None, Vec::new())];
 
         let name2 = "test2";
         let command2 = "test2";
-        let args2 = vec![Argument::skinny("test2", None, Vec::new())];
+        let args2 = vec![Argument::slim("test2", None, Vec::new())];
 
-        let workflow = Workflow::skinny(name1, command1, args1);
-        let workflow2 = Workflow::skinny(name2, command2, args2);
+        let workflow = Workflow::slim(name1, command1, args1);
+        let workflow2 = Workflow::slim(name2, command2, args2);
 
         store
             .insert_all(vec![workflow.clone(), workflow2.clone()])

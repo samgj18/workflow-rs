@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_parse_argument() {
-        let argument = Argument::skinny("test_arg", None, vec![]);
+        let argument = Argument::slim("test_arg", None, vec![]);
         let argument = argument.try_parse(None).unwrap().unwrap();
 
         assert_eq!(argument.len(), 1);
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_parse_argument_with_precedence() {
-        let argument = Argument::skinny("test_arg", None, vec![]);
+        let argument = Argument::slim("test_arg", None, vec![]);
 
         let mut precedence = HashMap::new();
         precedence.insert("test_arg".into(), "test".into());
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_parse_argument_without_precedence_and_default() {
-        let argument = Argument::skinny("test_arg", Some("super test"), vec![]);
+        let argument = Argument::slim("test_arg", Some("super test"), vec![]);
 
         let argument = argument.try_parse(None).unwrap().unwrap();
 
