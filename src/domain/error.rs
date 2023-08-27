@@ -26,6 +26,8 @@ pub enum Error {
     ParseError(#[source] Option<Box<dyn StdError>>),
     #[error("Unable to read the workflow.")]
     ReadError(#[source] Option<Box<dyn StdError>>),
+    #[error("Unable to write the workflow.")]
+    WriteError(#[source] Option<Box<dyn StdError>>),
     #[error("Unable to properly index workflows.")]
     SchemaError(#[source] Option<Box<dyn StdError>>),
     #[error("The store could not be initialized.")]

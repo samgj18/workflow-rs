@@ -1,4 +1,9 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    ops::Deref,
+    str::FromStr,
+};
 
 use crate::prelude::Hasher;
 
@@ -74,6 +79,95 @@ pub struct WorkflowVersion(String);
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowTag(String);
 
+#[derive(Clone, Debug)]
+pub struct RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    tags: Vec<T>,
+}
+
+impl<T> RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    pub fn new(tags: Vec<T>) -> Self {
+        Self { tags }
+    }
+
+    pub fn inner(&self) -> &Vec<T> {
+        &self.tags
+    }
+
+    pub fn into_inner(self) -> Vec<T> {
+        self.tags
+    }
+
+    pub fn tags(&self) -> Vec<T> {
+        self.tags.clone()
+    }
+}
+
+impl<T> FromIterator<T> for RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let tags = iter.into_iter().collect::<Vec<T>>();
+        Self { tags }
+    }
+}
+
+impl FromStr for RawVec<WorkflowTag> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tags = s
+            .split(',')
+            .map(|tag| tag.trim().parse::<WorkflowTag>())
+            .collect::<Result<Vec<WorkflowTag>, Error>>()?;
+        Ok(RawVec { tags })
+    }
+}
+
+impl Display for RawVec<WorkflowTag> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| tag.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "{}", tags)
+    }
+}
+
+impl FromStr for WorkflowTag {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+impl Display for WorkflowTag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for WorkflowTag {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowId(String);
 
@@ -88,6 +182,7 @@ pub struct Workflow {
     /// The name of the workflow
     name: WorkflowName,
     /// The description of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<WorkflowDescription>,
     /// The command to run the workflow
     command: WorkflowCommand,
@@ -95,11 +190,13 @@ pub struct Workflow {
     #[serde(default = "Vec::new")]
     arguments: Vec<Argument>,
     /// The url to the source of the workflow
-    #[serde(rename = "source_url")]
+    #[serde(rename = "source_url", skip_serializing_if = "Option::is_none")]
     source: Option<WorkflowSource>,
     /// The author of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     author: Option<WorkflowAuthor>,
     /// The version of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<WorkflowVersion>,
     /// The tags of the workflow
     #[serde(default = "Vec::new")]
@@ -113,8 +210,30 @@ impl ToString for Workflow {
 }
 
 impl Workflow {
+    pub fn new(
+        name: &str,
+        description: Option<&str>,
+        command: &str,
+        arguments: Vec<Argument>,
+        source: Option<&str>,
+        author: Option<&str>,
+        tags: Vec<WorkflowTag>,
+    ) -> Self {
+        Self {
+            name: WorkflowName(name.to_string()),
+            description: description
+                .map(|description| WorkflowDescription(description.to_string())),
+            command: WorkflowCommand(command.to_string()),
+            arguments,
+            source: source.map(|source| WorkflowSource(source.to_string())),
+            author: author.map(|author| WorkflowAuthor(author.to_string())),
+            version: Some(WorkflowVersion("0.0.1".to_string())),
+            tags,
+        }
+    }
+
     #[cfg(test)]
-    pub fn new(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
+    pub fn skinny(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
         Self {
             name: WorkflowName(name.to_string()),
             description: None,
@@ -370,10 +489,10 @@ mod tests {
     #[test]
     fn test_provides_correct_simple_suggestions() {
         let arguments = vec![
-            Argument::new("test", Some("test"), vec!["test"]),
-            Argument::new("test2", Some("test2"), vec!["test2"]),
+            Argument::skinny("test", Some("test"), vec!["test"]),
+            Argument::skinny("test2", Some("test2"), vec!["test2"]),
         ];
-        let workflow = Workflow::new("test", "test", arguments);
+        let workflow = Workflow::skinny("test", "test", arguments);
 
         let suggestions = workflow.suggestion("test", "test").unwrap();
 
@@ -383,7 +502,7 @@ mod tests {
 
     #[test]
     fn test_provides_correct_complex_suggestions() {
-        let arguments = vec![Argument::new(
+        let arguments = vec![Argument::skinny(
             "test",
             Some("test"),
             vec![
@@ -393,7 +512,7 @@ mod tests {
                 "turreprosation",
             ],
         )];
-        let workflow = Workflow::new("test", "test", arguments);
+        let workflow = Workflow::skinny("test", "test", arguments);
         let suggestions = workflow.suggestion("erg", "test").unwrap();
 
         assert_eq!(suggestions.len(), 2);

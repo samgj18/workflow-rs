@@ -7,6 +7,7 @@ pub enum Command {
     List(List),
     Search(Search),
     Reset(Reset),
+    Create(Create),
 }
 
 #[derive(Parser, Debug, Default)]
@@ -48,6 +49,17 @@ impl Search {
 pub struct Reset;
 
 impl Reset {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+#[derive(Parser, Debug, Default)]
+#[command(about = "Create a new workflow, e.g. `workflow create`")]
+pub struct Create;
+
+impl Create {
     #[cfg(test)]
     pub fn new() -> Self {
         Self {}

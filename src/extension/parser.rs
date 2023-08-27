@@ -2,13 +2,19 @@ use std::collections::HashMap;
 
 use inquire::{required, Text};
 
-use crate::domain::{
-    args::{Argument, ArgumentDefault},
-    error::Error,
-    workflow::Workflow,
+use crate::{
+    domain::{
+        args::{Argument, ArgumentDefault},
+        error::Error,
+        workflow::Workflow,
+    },
+    prelude::Unit,
 };
 
-pub trait Parser<T, I> {
+pub trait Parser {
+    type Error;
+    type Output;
+    type Args;
     /// Parse the input string into a type U or an `Error`
     ///
     /// # Arguments
@@ -18,18 +24,17 @@ pub trait Parser<T, I> {
     /// # Returns
     ///
     /// * A `Result` with a type `T` or an `Error`
-    fn try_parse<U>(&self, input: Option<I>) -> Result<T, U>
-    where
-        U: From<Error>;
+    fn try_parse(&self, input: Self::Args) -> Result<Self::Output, Self::Error>;
 }
 
 pub type Precedence = HashMap<String, String>;
 
-impl Parser<Precedence, String> for Workflow {
-    fn try_parse<U>(&self, _: Option<String>) -> Result<Precedence, U>
-    where
-        U: From<Error>,
-    {
+impl Parser for Workflow {
+    type Error = Error;
+    type Output = Precedence;
+    type Args = Unit;
+
+    fn try_parse(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
         let precedence = self.arguments().iter().try_fold(
             HashMap::new(),
             |mut acc, argument| -> Result<HashMap<String, String>, Error> {
@@ -58,7 +63,7 @@ impl Parser<Precedence, String> for Workflow {
 
         let mut arguments = HashMap::new();
         self.arguments().iter().for_each(|arg| {
-            if let Ok(Some(args)) = arg.try_parse::<Error>(Some(precedence.clone())) {
+            if let Ok(Some(args)) = arg.try_parse(Some(precedence.clone())) {
                 arguments.extend(args);
             }
         });
@@ -67,14 +72,12 @@ impl Parser<Precedence, String> for Workflow {
     }
 }
 
-impl Parser<Option<Precedence>, HashMap<String, String>> for Argument {
-    fn try_parse<U>(
-        &self,
-        precedence: Option<HashMap<String, String>>,
-    ) -> Result<Option<Precedence>, U>
-    where
-        U: From<Error>,
-    {
+impl Parser for Argument {
+    type Error = Error;
+    type Output = Option<Precedence>;
+    type Args = Option<HashMap<String, String>>;
+
+    fn try_parse(&self, precedence: Self::Args) -> Result<Self::Output, Self::Error> {
         let mut arguments = HashMap::new();
         let default_value = self
             .default()
@@ -103,8 +106,8 @@ mod tests {
 
     #[test]
     fn test_parse_argument() {
-        let argument = Argument::new("test_arg", None, vec![]);
-        let argument = argument.try_parse::<Error>(None).unwrap().unwrap();
+        let argument = Argument::skinny("test_arg", None, vec![]);
+        let argument = argument.try_parse(None).unwrap().unwrap();
 
         assert_eq!(argument.len(), 1);
         assert_eq!(
@@ -115,15 +118,12 @@ mod tests {
 
     #[test]
     fn test_parse_argument_with_precedence() {
-        let argument = Argument::new("test_arg", None, vec![]);
+        let argument = Argument::skinny("test_arg", None, vec![]);
 
         let mut precedence = HashMap::new();
         precedence.insert("test_arg".into(), "test".into());
 
-        let argument = argument
-            .try_parse::<Error>(Some(precedence))
-            .unwrap()
-            .unwrap();
+        let argument = argument.try_parse(Some(precedence)).unwrap().unwrap();
 
         assert_eq!(argument.len(), 1);
         assert_eq!(argument.get("test_arg"), Some(&"test".to_string()));
@@ -131,9 +131,9 @@ mod tests {
 
     #[test]
     fn test_parse_argument_without_precedence_and_default() {
-        let argument = Argument::new("test_arg", Some("super test"), vec![]);
+        let argument = Argument::skinny("test_arg", Some("super test"), vec![]);
 
-        let argument = argument.try_parse::<Error>(None).unwrap().unwrap();
+        let argument = argument.try_parse(None).unwrap().unwrap();
 
         assert_eq!(argument.len(), 1);
         assert_eq!(argument.get("test_arg"), Some(&"super test".to_string()));

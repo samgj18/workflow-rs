@@ -23,6 +23,9 @@ fn main() -> Result<Unit, Error> {
         Command::Reset(command) => {
             command.execute(())?;
         }
+        Command::Create(command) => {
+            command.execute(())?;
+        }
     }
 
     Ok(())
