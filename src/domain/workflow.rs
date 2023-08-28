@@ -12,11 +12,7 @@ use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use handlebars::Handlebars;
 use inquire::CustomUserError;
 use serde::{Deserialize, Serialize};
-use skim::SkimItem;
-
-const INSERTION_COST: usize = 1; // Weight for insertions
-const DELETION_COST: usize = 1; // Weight for deletions
-const SUBSTITUTION_COST: usize = 1; // Weight for substitutions
+use strsim::normalized_levenshtein;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowName(String);
@@ -390,96 +386,13 @@ impl Workflow {
             .unwrap_or(&Vec::new())
             .iter()
             .filter(|value| {
-                value.to_lowercase().contains(&input) || levenshtein(&input, value) <= 2
+                value.to_lowercase().contains(&input)
+                    || normalized_levenshtein(&input, value) <= 0.5
             })
             .take(5)
             .map(|value| value.to_owned())
             .collect())
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct IndexedWorkflow {
-    id: Vec<String>,
-    body: Vec<Workflow>,
-}
-
-impl IndexedWorkflow {
-    pub fn id(&self) -> String {
-        self.body
-            .first()
-            .map(|workflow| workflow.id().inner().to_owned())
-            .unwrap_or_default()
-    }
-}
-
-impl SkimItem for Workflow {
-    fn text(&self) -> std::borrow::Cow<str> {
-        self.name.inner().into()
-    }
-
-    fn preview(&self, _context: skim::PreviewContext) -> skim::ItemPreview {
-        skim::ItemPreview::AnsiText(self.pretty_format())
-    }
-}
-
-/// Calculates the levenshtein distance between two strings
-///
-/// # Credit
-///
-/// Credit where credit is due. This implementation is taken from [wooorm/levenshtein-rs](https://github.com/wooorm/levenshtein-rs)
-fn levenshtein(from: &str, to: &str) -> usize {
-    let mut result = 0;
-
-    if from == to {
-        return result;
-    }
-
-    let length_a = from.chars().count();
-    let length_b = to.chars().count();
-
-    if length_a == 0 {
-        return length_b;
-    }
-
-    if length_b == 0 {
-        return length_a;
-    }
-
-    let mut cache: Vec<usize> = (1..).take(length_a).collect();
-    let mut distance_a;
-    let mut distance_b;
-
-    for (index_b, code_b) in to.chars().enumerate() {
-        result = index_b;
-        distance_a = index_b;
-
-        for (index_a, code_a) in from.chars().enumerate() {
-            distance_b = if code_a == code_b {
-                distance_a
-            } else {
-                distance_a + SUBSTITUTION_COST
-            };
-
-            distance_a = cache[index_a];
-
-            result = if distance_a > result {
-                if distance_b > result {
-                    result + INSERTION_COST
-                } else {
-                    distance_b
-                }
-            } else if distance_b > distance_a {
-                distance_a + DELETION_COST
-            } else {
-                distance_b
-            };
-
-            cache[index_a] = result;
-        }
-    }
-
-    result
 }
 
 #[cfg(test)]
@@ -515,8 +428,8 @@ mod tests {
         let workflow = Workflow::slim("test", "test", arguments);
         let suggestions = workflow.suggestion("erg", "test").unwrap();
 
-        assert_eq!(suggestions.len(), 2);
-        assert_eq!(suggestions[0], "tergiversation");
-        assert_eq!(suggestions[1], "mergitramation");
+        assert_eq!(suggestions.len(), 4);
+        assert_eq!(suggestions[0], "surreptitious");
+        assert_eq!(suggestions[1], "tergiversation");
     }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::OpenOptions, sync::Arc};
+use std::{cmp::Ordering, collections::HashSet, fs::OpenOptions};
 
 use crossterm::{
     execute,
@@ -6,10 +6,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType, SetSize},
 };
 use inquire::{required, Confirm, CustomType, Text};
-use skim::{
-    prelude::{unbounded, SkimOptionsBuilder},
-    Skim, SkimItemReceiver, SkimItemSender,
-};
+use strsim::normalized_levenshtein;
 
 use crate::{
     domain::{error::Error, workflow::Workflow},
@@ -157,36 +154,41 @@ impl Executor for Search {
     fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
         // TODO: Figure out how to also look by tags, author, etc.
         let workflows = STORE.get_all()?;
+        let threshold = 0.5; // Adjust the threshold as needed
 
-        let options = SkimOptionsBuilder::default()
-            .height(Some("100%"))
-            .multi(false)
-            .preview(Some("")) // preview should be specified to enable preview window
-            .build()
-            .map_err(|e| Error::ReadError(Some(e.into())))?;
-
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-        let _ = std::thread::spawn(move || {
-            workflows.into_iter().for_each(|workflow| {
-                let _ = tx_item.send(Arc::new(workflow));
-            });
-        });
-
-        let items = Skim::run_with(&options, Some(rx_item))
-            .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
-
-        let selection = items
+        let names = workflows
             .into_iter()
-            .map(|item| item.clone().output().into_owned().trim().to_string())
-            .filter(|item| !item.is_empty())
+            .map(|workflow| workflow.name().inner().to_owned())
             .collect::<Vec<String>>();
 
-        let workflow = selection
-            .first()
-            .ok_or_else(|| Error::ReadError(Some("No workflow selected".into())))?;
+        let workflow = Text::new("Search for a workflow: ")
+            .with_autocomplete(move |query: &str| {
+                let mut similarity_scores =
+                    names
+                        .iter()
+                        .fold::<Vec<(String, f64)>, _>(Vec::new(), |mut acc, value| {
+                            let distance = normalized_levenshtein(query, value);
+                            let similarity = 1.0 - distance;
+                            acc.push((value.to_string(), similarity));
 
-        let command = Run::new(workflow);
+                            acc
+                        });
+
+                similarity_scores
+                    .sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(Ordering::Equal));
+
+                let suggestions = similarity_scores
+                    .into_iter()
+                    .rev()
+                    .filter(|(_, score)| *score > threshold)
+                    .map(|(value, _)| value)
+                    .collect::<Vec<String>>();
+                Ok(suggestions)
+            })
+            .prompt()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+        let command = Run::new(&workflow);
         let args = command.prepare()?;
         command.execute(args)
     }
