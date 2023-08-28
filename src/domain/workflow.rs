@@ -8,7 +8,6 @@ use std::{
 use crate::prelude::Hasher;
 
 use super::{args::Argument, prelude::Error};
-use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use handlebars::Handlebars;
 use inquire::CustomUserError;
 use serde::{Deserialize, Serialize};
@@ -302,79 +301,6 @@ impl Workflow {
                 )
             })
             .collect::<HashMap<_, _>>()
-    }
-
-    pub fn pretty_format(&self) -> String {
-        // Search divides the terminal width by 2, so we do the same here
-
-        let width = crossterm::terminal::size().unwrap_or((80, 20)).0 as usize / 2;
-        let name = &self.name.inner();
-        let available_width = width - name.len() - 3;
-
-        let description = self.description.as_deref().unwrap_or("");
-        let formatter = |description: &str| format!("\n{}\n", description);
-
-        let limited_description = if description.len() > available_width {
-            // Split the description into lines of the available width even if is
-            // a one line description
-            formatter(
-                &description
-                    .split_whitespace()
-                    .fold((String::new(), 0), |(mut acc, mut current_length), word| {
-                        let word_length = word.len();
-
-                        if current_length + word_length >= available_width {
-                            current_length = word_length;
-                            acc.push_str(&format!("\n{}", word));
-                        } else {
-                            current_length += word_length;
-                            acc.push_str(&format!(" {}", word));
-                        }
-
-                        (acc, current_length)
-                    })
-                    .0,
-            )
-        } else {
-            formatter(description)
-        };
-
-        let command = &self.command().inner();
-        let limited_command = if command.len() > available_width {
-            formatter(
-                &command
-                    .split_whitespace()
-                    .fold((String::new(), 0), |(mut acc, mut current_length), word| {
-                        let word_length = word.len();
-
-                        if current_length + word_length >= available_width {
-                            current_length = word_length;
-                            acc.push_str(&format!("\n{}", word));
-                        } else {
-                            current_length += word_length;
-                            acc.push_str(&format!(" {}", word));
-                        }
-
-                        (acc, current_length)
-                    })
-                    .0,
-            )
-        } else {
-            formatter(command)
-        };
-
-        format!(
-            "{}{}{}{}\n\n{}* {}\n\n{}{}{}",
-            SetAttribute(Attribute::Bold),
-            SetForegroundColor(Color::Green),
-            name,
-            SetForegroundColor(Color::Reset),
-            SetAttribute(Attribute::Reset),
-            limited_description.trim(),
-            SetAttribute(Attribute::Italic),
-            limited_command.trim(),
-            SetAttribute(Attribute::Reset),
-        )
     }
 
     pub fn suggestion(&self, input: &str, key: &str) -> Result<Vec<String>, CustomUserError> {
