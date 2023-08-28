@@ -387,7 +387,7 @@ impl Workflow {
             .iter()
             .filter(|value| {
                 value.to_lowercase().contains(&input)
-                    || normalized_levenshtein(&input, value) <= 0.5
+                    || normalized_levenshtein(&input, value) >= 0.5
             })
             .take(5)
             .map(|value| value.to_owned())
@@ -428,8 +428,8 @@ mod tests {
         let workflow = Workflow::slim("test", "test", arguments);
         let suggestions = workflow.suggestion("erg", "test").unwrap();
 
-        assert_eq!(suggestions.len(), 4);
-        assert_eq!(suggestions[0], "surreptitious");
-        assert_eq!(suggestions[1], "tergiversation");
+        assert_eq!(suggestions.len(), 2);
+        assert_eq!(suggestions[0], "tergiversation");
+        assert_eq!(suggestions[1], "mergitramation");
     }
 }
