@@ -62,7 +62,7 @@ mod tests {
     fn test_prepare_run() {
         set_env_var();
 
-        let workflow = Workflow::new("echo.yml", "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"", Vec::new());
+        let workflow = Workflow::slim("echo.yml", "echo \"This is a cool echo to try out: {{sshKeyPath}} and User: {{userName}} <{{userEmail}}>\"", Vec::new());
         STORE.clone().insert_all(vec![workflow]).unwrap();
 
         let command = Run::new("echo.yml");

@@ -45,13 +45,13 @@ impl Crawler {
             .map(|workflow| (workflow.id(), workflow.checksum()))
             .collect::<HashMap<WorkflowId, u64>>();
 
-        let is_different = workflows_checksums.iter().any(|(id, checksum)| {
+        let has_changes = workflows_checksums.iter().any(|(id, checksum)| {
             stored_workflows_checksums
                 .get(id)
                 .map_or(true, |stored_checksum| stored_checksum != checksum)
-        });
+        }) || stored_workflows.len() != workflows.len();
 
-        if is_different {
+        if has_changes {
             store.delete_all()?;
             store.insert_all(workflows)?;
         }

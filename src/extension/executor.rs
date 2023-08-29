@@ -1,19 +1,19 @@
-use std::sync::Arc;
+use std::{cmp::Ordering, collections::HashSet, fs::OpenOptions};
 
 use crossterm::{
     execute,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{self, Clear, ClearType, SetSize},
 };
-use inquire::Select;
-use skim::{
-    prelude::{unbounded, SkimOptionsBuilder},
-    Skim, SkimItemReceiver, SkimItemSender,
-};
+use inquire::{required, Confirm, CustomType, Text};
+use strsim::normalized_levenshtein;
 
 use crate::{
     domain::{error::Error, workflow::Workflow},
-    prelude::{List, Output, Prepare, Reset, Run, Search, Store, Unit, WorkflowDescription, STORE},
+    prelude::{
+        Argument, ArgumentValue, Create, List, Output, Prepare, RawVec, Reset, Run, Search, Store,
+        Unit, WorkflowDescription, WorkflowTag, STORE, WORKDIR,
+    },
 };
 
 use super::prelude::Parser;
@@ -42,7 +42,7 @@ impl Executor for Run {
     type Args = Workflow;
 
     fn execute(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let precedence = args.try_parse::<Error>(None)?;
+        let precedence = args.try_parse(())?;
         let command = args.command().replace(&precedence)?;
         let (cols, rows) = terminal::size().map_err(|e| Error::Io(Some(e.into())))?;
         let text = format!(
@@ -57,9 +57,8 @@ impl Executor for Run {
         println!("{}", text);
         println!("\n");
 
-        let is_execute = Select::new("Do you want to execute the command?", vec!["y", "n"])
-            .prompt_skippable()
-            .map(|s| s.map(|s| s == "y").unwrap_or(false))
+        let is_execute = Confirm::new("Do you want to execute the command?")
+            .prompt()
             .map_err(|e| Error::ReadError(Some(e.into())))?;
 
         if is_execute {
@@ -105,9 +104,7 @@ impl Executor for Run {
 
 impl Executor for List {
     type Error = Error;
-
     type Output = Output;
-
     type Args = Unit;
 
     fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -157,36 +154,41 @@ impl Executor for Search {
     fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
         // TODO: Figure out how to also look by tags, author, etc.
         let workflows = STORE.get_all()?;
+        let threshold = 0.5; // Adjust the threshold as needed
 
-        let options = SkimOptionsBuilder::default()
-            .height(Some("100%"))
-            .multi(false)
-            .preview(Some("")) // preview should be specified to enable preview window
-            .build()
-            .map_err(|e| Error::ReadError(Some(e.into())))?;
-
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-        let _ = std::thread::spawn(move || {
-            workflows.into_iter().for_each(|workflow| {
-                let _ = tx_item.send(Arc::new(workflow));
-            });
-        });
-
-        let items = Skim::run_with(&options, Some(rx_item))
-            .map(|out| out.selected_items)
-            .unwrap_or_else(Vec::new);
-
-        let selection = items
+        let names = workflows
             .into_iter()
-            .map(|item| item.clone().output().into_owned().trim().to_string())
-            .filter(|item| !item.is_empty())
+            .map(|workflow| workflow.name().inner().to_owned())
             .collect::<Vec<String>>();
 
-        let workflow = selection
-            .first()
-            .ok_or_else(|| Error::ReadError(Some("No workflow selected".into())))?;
+        let workflow = Text::new("Search for a workflow: ")
+            .with_autocomplete(move |query: &str| {
+                let mut similarity_scores =
+                    names
+                        .iter()
+                        .fold::<Vec<(String, f64)>, _>(Vec::new(), |mut acc, value| {
+                            let distance = normalized_levenshtein(query, value);
+                            let similarity = 1.0 - distance;
+                            acc.push((value.to_string(), similarity));
 
-        let command = Run::new(workflow);
+                            acc
+                        });
+
+                similarity_scores
+                    .sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(Ordering::Equal));
+
+                let suggestions = similarity_scores
+                    .into_iter()
+                    .rev()
+                    .filter(|(_, score)| *score > threshold)
+                    .map(|(value, _)| value)
+                    .collect::<Vec<String>>();
+                Ok(suggestions)
+            })
+            .prompt()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+        let command = Run::new(&workflow);
         let args = command.prepare()?;
         command.execute(args)
     }
@@ -213,9 +215,8 @@ impl Executor for Reset {
                         SetForegroundColor(Color::Reset),
                     )
                     .map_err(|e| Error::Io(Some(e.into())))?;
-        let is_reset = Select::new("Do you want to reset the workflows?", vec!["y", "n"])
-            .prompt_skippable()
-            .map(|s| s.map(|s| s == "y").unwrap_or(false))
+        let is_reset = Confirm::new("Do you want to reset the workflows?")
+            .prompt()
             .map_err(|e| Error::ReadError(Some(e.into())))?;
 
         if is_reset {
@@ -224,6 +225,197 @@ impl Executor for Reset {
         } else {
             Ok(Output::new("reset", "No workflows were reset"))
         }
+    }
+}
+
+impl Executor for Create {
+    type Error = Error;
+    type Output = Output;
+    type Args = Unit;
+
+    fn execute(&self, _: Self::Args) -> Result<Self::Output, Self::Error> {
+        let name: String = Text::new("What is the name of the workflow?")
+            .with_help_message("This is the name that will be used to run the workflow")
+            .with_validator(required!("Name is required"))
+            .prompt()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+        let description: Option<String> = Text::new("What is the description of the workflow?")
+            .with_help_message("This is the description that will be used to describe the workflow")
+            .prompt_skippable()
+            .map_err(|e| Error::ReadError(Some(e.into())))?
+            .filter(non_empty_filter);
+
+        let command: String = Text::new("What is the command of the workflow?")
+            .with_help_message("This is the command that will be executed when the workflow is run")
+            .with_validator(required!("Command is required"))
+            .prompt()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+
+        let arguments: Vec<Argument> = arguments_builder(&command)?;
+
+        let source: Option<String> = Text::new("What is the source of the workflow?")
+            .with_help_message("This is the link, if any, to the source of the workflow")
+            .prompt_skippable()
+            .map_err(|e| Error::ReadError(Some(e.into())))?
+            .filter(non_empty_filter);
+
+        let author: Option<String> = Text::new("Who is the author of the workflow?")
+            .with_help_message("This is the name of the author of the workflow")
+            .prompt_skippable()
+            .map_err(|e| Error::ReadError(Some(e.into())))?
+            .filter(non_empty_filter);
+
+        let tags: Vec<WorkflowTag> =
+            CustomType::<RawVec<WorkflowTag>>::new("What are the tags of the workflow?")
+                .with_help_message("Please enter a comma separated list of tags")
+                .with_parser(&|input| {
+                    let tags = input
+                        .split(',')
+                        .map(|tag| tag.trim().to_string())
+                        .collect::<Vec<String>>();
+                    Ok(tags
+                        .into_iter()
+                        .map(WorkflowTag::from)
+                        .collect::<RawVec<WorkflowTag>>())
+                })
+                .prompt_skippable()
+                .map_err(|e| Error::ReadError(Some(e.into())))?
+                .map(|raw| raw.into_inner())
+                .unwrap_or_else(Vec::new);
+
+        let workflow: Workflow = Workflow::new(
+            &name,
+            description.as_deref(),
+            &command,
+            arguments,
+            source.as_deref(),
+            author.as_deref(),
+            tags,
+        );
+
+        let path = WORKDIR.join(format!("{}.yml", name));
+
+        let writer = OpenOptions::new()
+            .create_new(true)
+            .read(true)
+            .write(true)
+            .open(&path)
+            .map_err(|e| Error::WriteError(Some(e.into())))?;
+
+        serde_yaml::to_writer(&writer, &workflow).map_err(|e| Error::WriteError(Some(e.into())))?;
+
+        execute!(
+            std::io::stdout(),
+            Clear(ClearType::All),
+            SetForegroundColor(Color::Green),
+            Print(format!("Workflow {} created at {}", name, path.display())),
+            SetForegroundColor(Color::Reset)
+        )
+        .map_err(|e| Error::Io(Some(e.into())))?;
+
+        Ok(Output::new("create", &format!("Workflow {} created", name)))
+    }
+}
+
+fn non_empty_filter(value: &String) -> bool {
+    !value.is_empty()
+}
+
+fn get_values(command: &str) -> Result<HashSet<&str>, Error> {
+    let values = command
+        .split("{{")
+        .skip(1)
+        .filter_map(|part| part.split("}}").next().map(|inner_part| inner_part.trim()))
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    Ok(values)
+}
+
+fn read_argument_value(question: &str, help: &str) -> Result<Option<String>, Error> {
+    Ok(Text::new(question)
+        .with_help_message(help)
+        .prompt_skippable()
+        .map_err(|e| Error::ReadError(Some(e.into())))?
+        .filter(non_empty_filter))
+}
+
+fn read_example_values() -> Result<Vec<String>, Error> {
+    let mut values = Vec::new();
+    loop {
+        let value = read_argument_value(
+            "What is the example value?",
+            "This is the value that will be used to show the user how to use the argument",
+        )?;
+        if let Some(value) = value {
+            values.push(value);
+        }
+        let has_more_values = Confirm::new("Do you want to add more values")
+            .prompt()
+            .map_err(|e| Error::ReadError(Some(e.into())))?;
+        if !has_more_values {
+            break;
+        }
+    }
+    Ok(values)
+}
+
+fn arguments_builder(command: &str) -> Result<Vec<Argument>, Error> {
+    let is_ordered = command
+        .match_indices("{{")
+        .zip(command.match_indices("}}"))
+        .all(|(start, end)| start < end);
+
+    let open_count = command.matches("{{").count();
+    let close_count = command.matches("}}").count();
+
+    let is_balanced = open_count == close_count;
+    let has_args = is_ordered && is_balanced && open_count != 0;
+
+    if has_args {
+        let values = get_values(command)?;
+
+        let arguments = values
+            .iter()
+            .map(|arg| {
+                let description = read_argument_value(
+                    &format!("What is the description of the argument '{}'?", arg),
+                    "This is the description that will be used as the help message for the argument",
+                )?;
+                let default = read_argument_value(
+                    &format!("What is the default value of the argument '{}'?", arg),
+                    "This is the default value that will be used if the user does not provide a value",
+                )?;
+                let has_example_values =
+                    Confirm::new(&format!("Do you want to add example values for '{}'?", arg))
+                        .with_help_message("This is the value that will be used to show to the user for suggestions")
+                        .prompt()
+                        .map_err(|e| Error::ReadError(Some(e.into())))?;
+                let values = if has_example_values {
+                    read_example_values()?
+                        .into_iter()
+                        .map(ArgumentValue::new)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                Ok(Argument::new(
+                    arg,
+                    description.as_deref(),
+                    default.as_deref(),
+                    values,
+                ))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        Ok(arguments)
+    } else if is_ordered && !is_balanced {
+        Err(Error::InvalidCommand(Some(
+            "The command has an unbalanced number of {{ and }}".into(),
+        )))
+    } else {
+        Ok(Vec::new())
     }
 }
 

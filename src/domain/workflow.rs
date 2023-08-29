@@ -1,17 +1,17 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    ops::Deref,
+    str::FromStr,
+};
 
 use crate::prelude::Hasher;
 
 use super::{args::Argument, prelude::Error};
-use crossterm::style::{Attribute, Color, SetAttribute, SetForegroundColor};
 use handlebars::Handlebars;
 use inquire::CustomUserError;
 use serde::{Deserialize, Serialize};
-use skim::SkimItem;
-
-const INSERTION_COST: usize = 1; // Weight for insertions
-const DELETION_COST: usize = 1; // Weight for deletions
-const SUBSTITUTION_COST: usize = 1; // Weight for substitutions
+use strsim::normalized_levenshtein;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowName(String);
@@ -74,6 +74,95 @@ pub struct WorkflowVersion(String);
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowTag(String);
 
+#[derive(Clone, Debug)]
+pub struct RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    tags: Vec<T>,
+}
+
+impl<T> RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    pub fn new(tags: Vec<T>) -> Self {
+        Self { tags }
+    }
+
+    pub fn inner(&self) -> &Vec<T> {
+        &self.tags
+    }
+
+    pub fn into_inner(self) -> Vec<T> {
+        self.tags
+    }
+
+    pub fn tags(&self) -> Vec<T> {
+        self.tags.clone()
+    }
+}
+
+impl<T> FromIterator<T> for RawVec<T>
+where
+    T: FromStr,
+    T: Display,
+    T: Clone,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let tags = iter.into_iter().collect::<Vec<T>>();
+        Self { tags }
+    }
+}
+
+impl FromStr for RawVec<WorkflowTag> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tags = s
+            .split(',')
+            .map(|tag| tag.trim().parse::<WorkflowTag>())
+            .collect::<Result<Vec<WorkflowTag>, Error>>()?;
+        Ok(RawVec { tags })
+    }
+}
+
+impl Display for RawVec<WorkflowTag> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| tag.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "{}", tags)
+    }
+}
+
+impl FromStr for WorkflowTag {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+impl Display for WorkflowTag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for WorkflowTag {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct WorkflowId(String);
 
@@ -88,6 +177,7 @@ pub struct Workflow {
     /// The name of the workflow
     name: WorkflowName,
     /// The description of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<WorkflowDescription>,
     /// The command to run the workflow
     command: WorkflowCommand,
@@ -95,11 +185,13 @@ pub struct Workflow {
     #[serde(default = "Vec::new")]
     arguments: Vec<Argument>,
     /// The url to the source of the workflow
-    #[serde(rename = "source_url")]
+    #[serde(rename = "source_url", skip_serializing_if = "Option::is_none")]
     source: Option<WorkflowSource>,
     /// The author of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     author: Option<WorkflowAuthor>,
     /// The version of the workflow
+    #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<WorkflowVersion>,
     /// The tags of the workflow
     #[serde(default = "Vec::new")]
@@ -113,8 +205,30 @@ impl ToString for Workflow {
 }
 
 impl Workflow {
+    pub fn new(
+        name: &str,
+        description: Option<&str>,
+        command: &str,
+        arguments: Vec<Argument>,
+        source: Option<&str>,
+        author: Option<&str>,
+        tags: Vec<WorkflowTag>,
+    ) -> Self {
+        Self {
+            name: WorkflowName(name.to_string()),
+            description: description
+                .map(|description| WorkflowDescription(description.to_string())),
+            command: WorkflowCommand(command.to_string()),
+            arguments,
+            source: source.map(|source| WorkflowSource(source.to_string())),
+            author: author.map(|author| WorkflowAuthor(author.to_string())),
+            version: Some(WorkflowVersion("0.0.1".to_string())),
+            tags,
+        }
+    }
+
     #[cfg(test)]
-    pub fn new(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
+    pub fn slim(name: &str, command: &str, arguments: Vec<Argument>) -> Self {
         Self {
             name: WorkflowName(name.to_string()),
             description: None,
@@ -189,79 +303,6 @@ impl Workflow {
             .collect::<HashMap<_, _>>()
     }
 
-    pub fn pretty_format(&self) -> String {
-        // Search divides the terminal width by 2, so we do the same here
-
-        let width = crossterm::terminal::size().unwrap_or((80, 20)).0 as usize / 2;
-        let name = &self.name.inner();
-        let available_width = width - name.len() - 3;
-
-        let description = self.description.as_deref().unwrap_or("");
-        let formatter = |description: &str| format!("\n{}\n", description);
-
-        let limited_description = if description.len() > available_width {
-            // Split the description into lines of the available width even if is
-            // a one line description
-            formatter(
-                &description
-                    .split_whitespace()
-                    .fold((String::new(), 0), |(mut acc, mut current_length), word| {
-                        let word_length = word.len();
-
-                        if current_length + word_length >= available_width {
-                            current_length = word_length;
-                            acc.push_str(&format!("\n{}", word));
-                        } else {
-                            current_length += word_length;
-                            acc.push_str(&format!(" {}", word));
-                        }
-
-                        (acc, current_length)
-                    })
-                    .0,
-            )
-        } else {
-            formatter(description)
-        };
-
-        let command = &self.command().inner();
-        let limited_command = if command.len() > available_width {
-            formatter(
-                &command
-                    .split_whitespace()
-                    .fold((String::new(), 0), |(mut acc, mut current_length), word| {
-                        let word_length = word.len();
-
-                        if current_length + word_length >= available_width {
-                            current_length = word_length;
-                            acc.push_str(&format!("\n{}", word));
-                        } else {
-                            current_length += word_length;
-                            acc.push_str(&format!(" {}", word));
-                        }
-
-                        (acc, current_length)
-                    })
-                    .0,
-            )
-        } else {
-            formatter(command)
-        };
-
-        format!(
-            "{}{}{}{}\n\n{}* {}\n\n{}{}{}",
-            SetAttribute(Attribute::Bold),
-            SetForegroundColor(Color::Green),
-            name,
-            SetForegroundColor(Color::Reset),
-            SetAttribute(Attribute::Reset),
-            limited_description.trim(),
-            SetAttribute(Attribute::Italic),
-            limited_command.trim(),
-            SetAttribute(Attribute::Reset),
-        )
-    }
-
     pub fn suggestion(&self, input: &str, key: &str) -> Result<Vec<String>, CustomUserError> {
         let input = input.to_lowercase();
 
@@ -271,96 +312,13 @@ impl Workflow {
             .unwrap_or(&Vec::new())
             .iter()
             .filter(|value| {
-                value.to_lowercase().contains(&input) || levenshtein(&input, value) <= 2
+                value.to_lowercase().contains(&input)
+                    || normalized_levenshtein(&input, value) >= 0.5
             })
             .take(5)
             .map(|value| value.to_owned())
             .collect())
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct IndexedWorkflow {
-    id: Vec<String>,
-    body: Vec<Workflow>,
-}
-
-impl IndexedWorkflow {
-    pub fn id(&self) -> String {
-        self.body
-            .first()
-            .map(|workflow| workflow.id().inner().to_owned())
-            .unwrap_or_default()
-    }
-}
-
-impl SkimItem for Workflow {
-    fn text(&self) -> std::borrow::Cow<str> {
-        self.name.inner().into()
-    }
-
-    fn preview(&self, _context: skim::PreviewContext) -> skim::ItemPreview {
-        skim::ItemPreview::AnsiText(self.pretty_format())
-    }
-}
-
-/// Calculates the levenshtein distance between two strings
-///
-/// # Credit
-///
-/// Credit where credit is due. This implementation is taken from [wooorm/levenshtein-rs](https://github.com/wooorm/levenshtein-rs)
-fn levenshtein(from: &str, to: &str) -> usize {
-    let mut result = 0;
-
-    if from == to {
-        return result;
-    }
-
-    let length_a = from.chars().count();
-    let length_b = to.chars().count();
-
-    if length_a == 0 {
-        return length_b;
-    }
-
-    if length_b == 0 {
-        return length_a;
-    }
-
-    let mut cache: Vec<usize> = (1..).take(length_a).collect();
-    let mut distance_a;
-    let mut distance_b;
-
-    for (index_b, code_b) in to.chars().enumerate() {
-        result = index_b;
-        distance_a = index_b;
-
-        for (index_a, code_a) in from.chars().enumerate() {
-            distance_b = if code_a == code_b {
-                distance_a
-            } else {
-                distance_a + SUBSTITUTION_COST
-            };
-
-            distance_a = cache[index_a];
-
-            result = if distance_a > result {
-                if distance_b > result {
-                    result + INSERTION_COST
-                } else {
-                    distance_b
-                }
-            } else if distance_b > distance_a {
-                distance_a + DELETION_COST
-            } else {
-                distance_b
-            };
-
-            cache[index_a] = result;
-        }
-    }
-
-    result
 }
 
 #[cfg(test)]
@@ -370,10 +328,10 @@ mod tests {
     #[test]
     fn test_provides_correct_simple_suggestions() {
         let arguments = vec![
-            Argument::new("test", Some("test"), vec!["test"]),
-            Argument::new("test2", Some("test2"), vec!["test2"]),
+            Argument::slim("test", Some("test"), vec!["test"]),
+            Argument::slim("test2", Some("test2"), vec!["test2"]),
         ];
-        let workflow = Workflow::new("test", "test", arguments);
+        let workflow = Workflow::slim("test", "test", arguments);
 
         let suggestions = workflow.suggestion("test", "test").unwrap();
 
@@ -383,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_provides_correct_complex_suggestions() {
-        let arguments = vec![Argument::new(
+        let arguments = vec![Argument::slim(
             "test",
             Some("test"),
             vec![
@@ -393,7 +351,7 @@ mod tests {
                 "turreprosation",
             ],
         )];
-        let workflow = Workflow::new("test", "test", arguments);
+        let workflow = Workflow::slim("test", "test", arguments);
         let suggestions = workflow.suggestion("erg", "test").unwrap();
 
         assert_eq!(suggestions.len(), 2);
