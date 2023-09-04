@@ -26,7 +26,7 @@ jobs:
     name: Build and Test
     runs-on: ${{ matrix.platform }}-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Check
       run: cargo check --verbose
     - name: Install
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current branch (full)
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Tag 
