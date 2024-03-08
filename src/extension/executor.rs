@@ -318,8 +318,8 @@ impl Executor for Create {
     }
 }
 
-fn non_empty_filter(value: &String) -> bool {
-    !value.is_empty()
+fn non_empty_filter<T: ToString>(value: &T) -> bool {
+    !value.to_string().trim().is_empty()
 }
 
 fn get_values(command: &str) -> Result<HashSet<&str>, Error> {
