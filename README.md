@@ -1,3 +1,5 @@
+**Warp is now available for Linux, archiving in favour of that**
+
 # Workflow
 
 Workflow-rs is a simple `workflow` engine written in Rust. Strictly speaking, it is merely
